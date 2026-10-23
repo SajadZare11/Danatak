@@ -1,0 +1,826 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String        @id @default(cuid())
+  nationalId   String        @unique // کد ملی
+  fullName     String
+  phoneNumber  String?
+  avatarUrl    String?
+  role         String        @default("STUDENT") // STUDENT, TEACHER, PRINCIPAL, COUNSELOR, PARENT
+  passwordHash String        @default("demo1234") // برای حالت دمو
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // روابط اختصاصی
+  studentProfile     StudentProfile?
+  teacherProfile     TeacherProfile?
+  createdQuestions   Question[]
+  createdAssignments Assignment[]
+  createdExams       Exam[]
+  parentRelations    ParentStudentRelation[] @relation("ParentUser")
+  childRelations     ParentStudentRelation[] @relation("ChildUser")
+  studyLogs          StudyLog[]
+  attendanceRecords  AttendanceRecord[]
+  disciplineRecords  DisciplineRecord[]
+  officialGrades     OfficialGrade[]
+  tuitionRecords     TuitionRecord[]
+  studyPlansAssigned StudyPlan[]             @relation("CounselorPlans")
+  studyPlansReceived StudyPlan[]             @relation("StudentPlans")
+  submissions        AssignmentSubmission[]
+  examAttempts       ExamAttempt[]
+  mistakes           StudentMistake[]        @relation("StudentMistakes")
+  leitnerCards       LeitnerCard[]           @relation("StudentLeitnerCards")
+
+  // استودیوی یادگیری هوشمند و دورسنجی مطالعه (Gizmo / StudyFetch / MagicSchool)
+  createdStudyPacks             StudyPack[]             @relation("StudyPackCreator")
+  cardProgresses                StudentCardProgress[]   @relation("StudentCardProgresses")
+  studyQuizAttempts             StudyQuizAttempt[]      @relation("StudentQuizAttempts")
+  studyTelemetryLogs            StudyTelemetryLog[]     @relation("StudentTelemetryLogs")
+  teacherStudyPackAssignments   StudyPackAssignment[]   @relation("TeacherStudyPackAssignments")
+  studentStudyPackAssignments   StudyPackAssignment[]   @relation("StudentStudyPackAssignments")
+  sentChannelMessages           ChannelMessage[]
+
+  // سامانه کلاس آنلاین تصویری، وبینار و تخته‌سیاه تعاملی (Live Virtual Classroom)
+  hostedLiveSessions            LiveClassSession[]       @relation("HostTeacherLiveSessions")
+  liveSessionParticipations     LiveSessionParticipant[] @relation("StudentLiveParticipations")
+  liveSessionChats              LiveSessionChat[]        @relation("SenderLiveChats")
+
+  // تصحیح هوشمند پاسخ‌برگ OMR و کارنامه تحلیلی کنکور (AI OMR Bubble Sheet Engine)
+  omrAnswerSheets               OMRAnswerSheet[]        @relation("StudentOMRSheets")
+}
+
+model ParentStudentRelation {
+  id        String   @id @default(cuid())
+  parentId  String
+  studentId String
+  relation  String   @default("ولی") // پدر، مادر، قیم
+  parent    User     @relation("ParentUser", fields: [parentId], references: [id], onDelete: Cascade)
+  student   User     @relation("ChildUser", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+}
+
+model StudentProfile {
+  id                  String         @id @default(cuid())
+  userId              String         @unique
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gradeLevel          Int            // پایه (مثلا دهم=۱۰، دوازدهم=۱۲)
+  major               String         // تجربی، ریاضی، انسانی
+  schoolName          String         @default("دبیرستان علامه حلی ۱ (تیزهوشان)")
+  learningStyle       String?        // بصری، کلامی، تحلیلی
+  academicStrengths   String?        // نقاط قوت تحصیلی
+  academicWeaknesses  String?        // نقاط ضعف
+  privateTeacherNotes String?        // یادداشت‌های محرمانه معلم و مشاور
+  currentStreakDays   Int            @default(0) // زنجیره استمرار مطالعه
+  totalXP             Int            @default(0) // امتیاز گیمیفیکیشن
+  enrollments         Enrollment[]
+  masteryRecords      TopicMastery[]
+}
+
+model TeacherProfile {
+  id         String      @id @default(cuid())
+  userId     String      @unique
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty  String      // تخصص تدریس (مثلاً ریاضی و حسابان)
+  schoolName String      @default("دبیرستان علامه حلی ۱ (تیزهوشان)")
+  classrooms Classroom[]
+}
+
+model School {
+  id         String      @id @default(cuid())
+  name       String
+  type       String      // تیزهوشان، غیرانتفاعی، دولتی
+  code       String      @unique // کد مدرسه آموزش و پرورش
+  city       String      @default("تهران")
+  classrooms Classroom[]
+}
+
+model Classroom {
+  id          String             @id @default(cuid())
+  name        String             // مثلاً: کلاس دوازدهم ریاضی الف
+  gradeLevel  Int                // ۱۲
+  major       String             // ریاضی
+  schoolId    String?
+  school      School?            @relation(fields: [schoolId], references: [id])
+  teacherId   String?
+  teacher     TeacherProfile?    @relation(fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+  assignments Assignment[]
+  exams       Exam[]
+  attendances AttendanceRecord[]
+  officialGrades OfficialGrade[]
+  studyPackAssignments StudyPackAssignment[]
+  timetablePeriods TimetablePeriod[]
+  liveClassSessions LiveClassSession[]
+}
+
+model Enrollment {
+  id          String         @id @default(cuid())
+  classroomId String
+  classroom   Classroom      @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, studentId])
+}
+
+model Subject {
+  id        String     @id @default(cuid())
+  name      String     // ریاضی، فیزیک، زیست‌شناسی، شیمی
+  code      String     @unique
+  color     String     @default("#4f46e5")
+  textbooks Textbook[]
+  studyLogs StudyLog[]
+  officialGrades OfficialGrade[]
+  studyPacks StudyPack[]
+}
+
+model Textbook {
+  id         String   @id @default(cuid())
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title      String   // مثلاً حسابان ۲، ریاضی ۳، فیزیک ۳
+  gradeLevel Int      // ۱۰، ۱۱، ۱۲
+  major      String   // ریاضی، تجربی، عمومی
+  topics     Topic[]
+}
+
+model Topic {
+  id            String             @id @default(cuid())
+  textbookId    String
+  textbook      Textbook           @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  title         String             // مشتق، حد و پیوستگی، تابع
+  orderIndex    Int                @default(0)
+  parentId      String?
+  parent        Topic?             @relation("TopicHierarchy", fields: [parentId], references: [id])
+  subTopics     Topic[]            @relation("TopicHierarchy")
+  questions     Question[]
+  masteries     TopicMastery[]
+  assignments   Assignment[]
+  exams         Exam[]
+  studyLogs     StudyLog[]
+  leitnerCards  LeitnerCard[]
+  
+  // پیش‌نیازها
+  prerequisites PrerequisiteEdge[] @relation("TargetTopic")
+  dependents    PrerequisiteEdge[] @relation("SourceTopic")
+}
+
+model PrerequisiteEdge {
+  id            String @id @default(cuid())
+  sourceTopicId String // مبحث پیش‌نیاز (مثلاً تابع دهم)
+  sourceTopic   Topic  @relation("SourceTopic", fields: [sourceTopicId], references: [id], onDelete: Cascade)
+  targetTopicId String // مبحث هدف (مثلاً مشتق دوازدهم)
+  targetTopic   Topic  @relation("TargetTopic", fields: [targetTopicId], references: [id], onDelete: Cascade)
+  importance    Float  @default(1.0) // ضریب اهمیت پیش‌نیاز
+
+  @@unique([sourceTopicId, targetTopicId])
+}
+
+model TopicMastery {
+  id                String         @id @default(cuid())
+  studentProfileId  String
+  studentProfile    StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  topicId           String
+  topic             Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  masteryPercentage Float          @default(0.0) // ۰ تا ۱۰۰ درصد
+  evaluatedBy       String?        // TEACHER یا AUTO_EXAM
+  lastEvaluatedAt   DateTime       @default(now())
+  historyJson       String?        // آرایه تغییرات در طول سال
+
+  @@unique([studentProfileId, topicId])
+}
+
+model Question {
+  id          String           @id @default(cuid())
+  topicId     String
+  topic       Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?            @relation(fields: [authorId], references: [id])
+  content     String           // صورت سوال با پشتیبانی فرمول KaTeX
+  type        String           @default("MULTIPLE_CHOICE") // MULTIPLE_CHOICE, DESCRIPTIVE, TRUE_FALSE, FILL_BLANK
+  difficulty  String           @default("MEDIUM") // EASY, MEDIUM, HARD, OLYMPIAD
+  isPublic    Boolean          @default(true) // عمومی در بانک یا خصوصی معلم
+  explanation String?          // راه حل تشریحی و بارم‌بندی
+  tags        String?          // نهایی، کنکور، تیزهوشان، تالیفی
+  options     QuestionOption[]
+  mistakes    StudentMistake[]
+  leitnerCards LeitnerCard[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionText String   // متن گزینه با فرمول ریاضی
+  orderIndex Int      // ۱ تا ۴
+  isCorrect  Boolean  @default(false)
+}
+
+model Assignment {
+  id            String                 @id @default(cuid())
+  title         String
+  description   String?
+  classroomId   String
+  classroom     Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacherId     String
+  teacher       User                   @relation(fields: [teacherId], references: [id])
+  topicId       String?
+  topic         Topic?                 @relation(fields: [topicId], references: [id])
+  dueDate       DateTime
+  maxScore      Float                  @default(20.0)
+  questionsJson String                 // آرایه آیدی‌های سوالات یا مشخصات بسته
+  submissions   AssignmentSubmission[]
+  createdAt     DateTime               @default(now())
+}
+
+model AssignmentSubmission {
+  id                String    @id @default(cuid())
+  assignmentId      String
+  assignment        Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId         String
+  student           User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status            String    @default("PENDING") // PENDING, SUBMITTED, GRADED
+  submittedAt       DateTime?
+  score             Float?
+  answersJson       String?   // پاسخ‌های ثبت‌شده (کلید تستی یا آپلود عکس)
+  teacherFeedback   String?   // کامنت معلم
+  annotatedImageUrl String?   // عکس خط‌کشی‌شده تشریحی
+}
+
+model Exam {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  classroomId     String
+  classroom       Classroom     @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacherId       String
+  teacher         User          @relation(fields: [teacherId], references: [id])
+  topicId         String?
+  topic           Topic?        @relation(fields: [topicId], references: [id])
+  startTime       DateTime      @default(now())
+  durationMinutes Int           @default(45)
+  isSequential    Boolean       @default(false) // بدون بازگشت به سوال قبل
+  enableAntiCheat Boolean       @default(true) // قفل مرورگر و خروج تب
+  maxTabSwitches  Int           @default(3)
+  questionsJson   String        // لیست سوالات یا استخر سوالات هم‌سطح
+  attempts        ExamAttempt[]
+  omrAnswerSheets OMRAnswerSheet[]
+  createdAt       DateTime      @default(now())
+}
+
+model ExamAttempt {
+  id              String    @id @default(cuid())
+  examId          String
+  exam            Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  startedAt       DateTime  @default(now())
+  submittedAt     DateTime?
+  score           Float?
+  percentage      Float?
+  taraz           Int?
+  tabSwitchCount  Int       @default(0)
+  answersJson     String?   // پاسخ‌ها به تفکیک سوال
+  warningLogsJson String?   // لاگ اخطارهای خروج از تب
+}
+
+model AttendanceRecord {
+  id           String    @id @default(cuid())
+  classroomId  String
+  classroom    Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date         DateTime  @default(now())
+  status       String    @default("PRESENT") // PRESENT, ABSENT, LATE
+  delayMinutes Int?      @default(0)
+  note         String?
+}
+
+model DisciplineRecord {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date       DateTime @default(now())
+  type       String   @default("POSITIVE") // POSITIVE, NEGATIVE
+  title      String   // تشویق حل تمرین، بی‌نظمی در کلاس
+  points     Int      @default(1) // +1 یا -1
+  recordedBy String?  // نام ثبت‌کننده (معلم، ناظم، مشاور)
+  note       String?
+}
+
+model OfficialGrade {
+  id                    String    @id @default(cuid())
+  studentId             String
+  student               User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classroomId           String
+  classroom             Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  subjectId             String
+  subject               Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term1Continuous       Float?    // مستمر نوبت اول (۰ تا ۲۰)
+  term1Final            Float?    // پایانی نوبت اول (۰ تا ۲۰)
+  term2Continuous       Float?    // مستمر نوبت دوم (۰ تا ۲۰)
+  term2Final            Float?    // پایانی نوبت دوم (۰ تا ۲۰)
+  annualScore           Float?    // نمره سالانه
+  descriptiveEvaluation String?   // خیلی خوب، خوب، قابل قبول، نیاز به تلاش بیشتر
+  conductScore          Float     @default(20.0) // نمره انضباط
+  unexcusedAbsences     Int       @default(0)    // تعداد غیبت غیرموجه
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([studentId, classroomId, subjectId])
+}
+
+model StudyLog {
+  id           String   @id @default(cuid())
+  studentId    String
+  student      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  topicId      String?
+  topic        Topic?   @relation(fields: [topicId], references: [id])
+  date         DateTime @default(now())
+  studyMinutes Int      // دقایق مطالعه
+  testCount    Int      @default(0) // تعداد تست حل‌شده
+  note         String?
+}
+
+model StudyPlan {
+  id            String   @id @default(cuid())
+  counselorId   String
+  counselor     User     @relation("CounselorPlans", fields: [counselorId], references: [id])
+  studentId     String
+  student       User     @relation("StudentPlans", fields: [studentId], references: [id])
+  weekStartDate DateTime
+  weekEndDate   DateTime
+  scheduleJson  String   // جدول ساعات و مباحث هر روز هفته
+  counselorNote String?
+  isApproved    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model TuitionRecord {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  totalAmount Int      // مبلغ کل شهریه (تومان)
+  paidAmount  Int      @default(0)
+  planJson    String?  // اقساط و سررسید چک‌ها
+  status      String   @default("جاری") // تسویه، معوق، جاری
+  updatedAt   DateTime @updatedAt
+}
+
+model StudentMistake {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     User      @relation("StudentMistakes", fields: [studentId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  source      String    @default("ASSIGNMENT") // ASSIGNMENT, EXAM, PRACTICE
+  selectedOpt String?   // گزینه یا پاسخ ارسالی
+  errorReason String?   // بی‌دقتی محاسباتی، عدم تسلط مفهومی، کمبود زمان، بدخوانی صورت سوال
+  isResolved  Boolean   @default(false)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  @@unique([studentId, questionId])
+}
+
+model LeitnerCard {
+  id             String    @id @default(cuid())
+  studentId      String
+  student        User      @relation("StudentLeitnerCards", fields: [studentId], references: [id], onDelete: Cascade)
+  topicId        String?
+  topic          Topic?    @relation(fields: [topicId], references: [id])
+  questionId     String?
+  question       Question? @relation(fields: [questionId], references: [id])
+  frontContent   String    // صورت کارت (KaTeX)
+  backContent    String    // پاسخ تشریحی و نکته کلیدی
+  boxLevel       Int       @default(1) // ۱ تا ۵
+  lastReviewedAt DateTime  @default(now())
+  nextReviewAt   DateTime  @default(now())
+  reviewCount    Int       @default(0)
+  successCount   Int       @default(0)
+  createdAt      DateTime  @default(now())
+}
+
+model SmsLog {
+  id             String   @id @default(cuid())
+  senderId       String?
+  recipientPhone String
+  recipientName  String
+  recipientRole  String   @default("PARENT") // PARENT, STUDENT, TEACHER
+  studentId      String?
+  studentName    String?
+  type           String   @default("GENERAL") // ABSENCE_ALERT, GRADE_ALERT, HOMEWORK_DUE, TUITION_REMINDER, GENERAL, DISCIPLINE
+  message        String
+  status         String   @default("DELIVERED") // DELIVERED, SENT, PENDING, FAILED
+  costToman      Int      @default(120)
+  partsCount     Int      @default(1)
+  providerRef    String?  // شناسه پیامک در سامانه مگفا یا کاوه‌نگار
+  sentAt         DateTime @default(now())
+}
+
+// =========================================================================
+// ماژول استودیوی یادگیری هوشمند و دورسنجی مطالعه (Gizmo / StudyFetch / MagicSchool)
+// =========================================================================
+
+model StudyPack {
+  id            String                @id @default(cuid())
+  title         String                // عنوان بسته مطالعه (مثلاً مشتق و اکسترمم)
+  description   String?               // توضیحات یا سرفصل‌ها
+  creatorId     String                // آیدی کاربر سازنده (معلم یا دانش‌آموز)
+  creator       User                  @relation("StudyPackCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  sourceType    String                @default("TEXT") // TEXT, PDF, IMAGE, AUDIO
+  rawContent    String?               // متن خام، خلاصه ورودی یا رونوشت صوتی
+  summaryJson   String                // خلاصه ساختاریافته، نکات کلیدی و واژه‌نامه (JSON)
+  mindMapJson   String                // گراف گره‌ها و یال‌های نقشه ذهنی (JSON)
+  topicTag      String?               // برچسب مبحثی (برای تجمیع در مستری و هیت‌مپ)
+  gradeLevel    Int?                  // ۱۰، ۱۱، ۱۲
+  subjectId     String?
+  subject       Subject?              @relation(fields: [subjectId], references: [id])
+  isPublic      Boolean               @default(true) // عمومی در استودیو یا شخصی
+  flashcards    StudyFlashcard[]
+  quizzes       StudyQuiz[]
+  assignments   StudyPackAssignment[]
+  telemetryLogs StudyTelemetryLog[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+
+model StudyFlashcard {
+  id              String                @id @default(cuid())
+  studyPackId     String
+  studyPack       StudyPack             @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  front           String                // رو (صورت سوال، مفهوم یا فرمول KaTeX)
+  back            String                // پشت (پاسخ تشریحی، تعریف یا قاعده)
+  hint            String?               // راهنمایی صوتی یا متنی
+  topicTag        String?               // تگ مبحث
+  difficulty      String                @default("MEDIUM") // EASY, MEDIUM, HARD
+  orderIndex      Int                   @default(0)
+  progressRecords StudentCardProgress[]
+  createdAt       DateTime              @default(now())
+}
+
+model StudentCardProgress {
+  id             String         @id @default(cuid())
+  studentId      String         // کلید خارجی دانش‌آموز
+  student        User           @relation("StudentCardProgresses", fields: [studentId], references: [id], onDelete: Cascade)
+  flashcardId    String
+  flashcard      StudyFlashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  easinessFactor Float          @default(2.5) // ضریب سهولت EF در الگوریتم SM-2 (حداقل ۱.۳)
+  interval       Int            @default(0)   // فاصله مرور به روز (روزهای بعد)
+  repetitions    Int            @default(0)   // تعداد تکرار موفق متوالی
+  nextReviewDate DateTime       @default(now()) // سررسید مرور بعدی
+  lastReviewedAt DateTime?
+  lastRating     Int?           // ۱: دوباره، ۲: سخت، ۳: خوب، ۴: آسان
+  reviewCount    Int            @default(0)   // مجموع دفعات مرور
+  lapseCount     Int            @default(0)   // دفعات فراموشی و بازگشت به ابتدا
+
+  @@unique([studentId, flashcardId])
+  @@index([studentId, nextReviewDate])
+}
+
+model StudyQuiz {
+  id               String              @id @default(cuid())
+  studyPackId      String
+  studyPack        StudyPack           @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  timeLimitMinutes Int?                // محدودیت زمانی اختیاری
+  questions        StudyQuizQuestion[]
+  attempts         StudyQuizAttempt[]
+  createdAt        DateTime            @default(now())
+}
+
+model StudyQuizQuestion {
+  id            String    @id @default(cuid())
+  quizId        String
+  quiz          StudyQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText  String    // متن سوال با پشتیبانی KaTeX
+  type          String    @default("MULTIPLE_CHOICE") // MULTIPLE_CHOICE, TRUE_FALSE, SHORT_ANSWER
+  optionsJson   String?   // آرایه گزینه‌های ۴ گانه (JSON)
+  correctAnswer String    // گزینه صحیح یا متن پاسخ
+  explanation   String    // تحلیل جامع آموزشی و دلیل درستی/نادرستی گزینه‌ها
+  bloomLevel    String    @default("UNDERSTAND") // REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE
+  topicTag      String?
+  orderIndex    Int       @default(0)
+}
+
+model StudyQuizAttempt {
+  id                String    @id @default(cuid())
+  quizId            String
+  quiz              StudyQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId         String    // کلید خارجی دانش‌آموز
+  student           User      @relation("StudentQuizAttempts", fields: [studentId], references: [id], onDelete: Cascade)
+  score             Float     // نمره کسب‌شده
+  maxScore          Float     // حداکثر نمره
+  percentage        Float     // درصد پاسخگویی
+  answersJson       String    // جزئیات پاسخ دانش‌آموز به تفکیک سوالات (JSON)
+  timeSpentSeconds  Int       @default(0)
+  activeTimeSeconds Int       @default(0) // زمان مطالعه مفید
+  idleTimeSeconds   Int       @default(0) // زمان غیرفعال/تقلب در تایمر
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  @@index([studentId, quizId])
+}
+
+model StudyTelemetryLog {
+  id                    String     @id @default(cuid())
+  studentId             String     // کلید خارجی دانش‌آموز
+  student               User       @relation("StudentTelemetryLogs", fields: [studentId], references: [id], onDelete: Cascade)
+  studyPackId           String?
+  studyPack             StudyPack? @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  eventType             String     // study_pack_created, flashcard_reviewed, quiz_attempt_completed, idle_detected, active_heartbeat, streak_updated
+  topicTag              String?    // برچسب مبحث
+  activeDurationSeconds Int        @default(0) // ثانیه‌های فعال
+  idleDurationSeconds   Int        @default(0) // ثانیه‌های غیرفعال
+  metadataJson          String?    // اطلاعات متادیتای تکمیلی
+  createdAt             DateTime   @default(now())
+
+  @@index([studentId, eventType])
+  @@index([studentId, createdAt])
+}
+
+model StudyPackAssignment {
+  id              String     @id @default(cuid())
+  studyPackId     String
+  studyPack       StudyPack  @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  teacherId       String
+  teacher         User       @relation("TeacherStudyPackAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
+  classroomId     String?
+  classroom       Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId       String?
+  student         User?      @relation("StudentStudyPackAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  dueDate         DateTime   // مهلت انجام
+  minMasteryScore Float      @default(80.0) // حداقل نمره تسلط الزامی (مثلاً ۸۰٪)
+  instructions    String?
+  createdAt       DateTime   @default(now())
+}
+
+// ==========================================
+// ماژول‌های تکمیلی داناتک (Expansion Suite)
+// ==========================================
+
+// ۱. پیام‌ها، اعلانات و تالار رفع اشکال
+model ChannelMessage {
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  type       String   @default("ANNOUNCEMENT") // ANNOUNCEMENT, QA_QUESTION, QA_ANSWER, PRIVATE_DM
+  title      String?
+  content    String
+  targetRole String?  @default("ALL") // ALL, STUDENT, PARENT, TEACHER
+  subjectId  String?
+  parentId   String?  // در صورت پاسخ به یک پرسش (Thread)
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// ۲. برنامه کلاسی هفتگی و تقویم
+model TimetablePeriod {
+  id          String    @id @default(cuid())
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int       // 0: شنبه، 1: یکشنبه، 2: دوشنبه، 3: سه‌شنبه، 4: چهارشنبه
+  periodIndex Int       // 1 تا 4
+  startTime   String    // مثلا 07:45
+  endTime     String    // مثلا 09:15
+  subjectName String    // نام درس
+  teacherName String    // نام دبیر
+  roomNumber  String?   // شماره کلاس
+}
+
+// ۳. کتابخانه دیجیتال و مخزن جزوات
+model DigitalLibraryResource {
+  id          String   @id @default(cuid())
+  title       String
+  category    String   // TEXTBOOK, TEACHER_NOTES, PAST_EXAM, VIDEO
+  gradeLevel  Int      // 10, 11, 12
+  major       String   // ریاضی، تجربی، عمومی
+  subjectName String   // حسابان، فیزیک، زیست
+  fileUrl     String
+  fileSize    String   // مثلا 4.5 MB
+  authorName  String
+  downloads   Int      @default(0)
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+// ۴. سامانه هوشمند پیامک و هشدارهای خودکار اولیا (SMS Gateway & Alerts)
+model SmsTemplate {
+  id           String   @id @default(cuid())
+  title        String
+  category     String   // ABSENCE, GRADE_ALERT, HOMEWORK_DUE, TUITION_DUE, ANNOUNCEMENT, DISCIPLINE
+  templateBody String
+  variables    String   // JSON string of variables e.g. ["studentName", "date"]
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model SmsWallet {
+  id           String   @id @default("default-wallet")
+  balanceToman Int      @default(2450000)
+  smsRateToman Int      @default(120)
+  totalSent    Int      @default(0)
+  deliveryRate Float    @default(98.5)
+  providerName String   @default("KavehNegar VIP Gateway")
+  senderNumber String   @default("10008899")
+  updatedAt    DateTime @updatedAt
+}
+
+// ۵. کلاس آنلاین تصویری، تخته هوشمند و اشتراک اسلاید (Live Virtual Classroom & Whiteboard)
+model VirtualClassroomSession {
+  id           String                        @id @default(cuid())
+  title        String
+  teacherName  String                        @default("استاد احسان محمدی")
+  subjectName  String                        @default("حسابان ۲")
+  className    String                        @default("کلاس ۱۲/۱ (دوازدهم ریاضی)")
+  status       String                        @default("LIVE") // SCHEDULED, LIVE, ENDED
+  isRecording  Boolean                       @default(false)
+  recordingUrl String?
+  activeSlide  String                        @default("BLANK") // BLANK, TEXTBOOK_P42, TEXTBOOK_P58, FORMULA_SLIDE
+  startedAt    DateTime                      @default(now())
+  endedAt      DateTime?
+  attendees    VirtualClassroomAttendee[]
+  chatMessages VirtualClassroomChatMessage[]
+}
+
+model VirtualClassroomAttendee {
+  id           String                  @id @default(cuid())
+  sessionId    String
+  session      VirtualClassroomSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId       String
+  userName     String
+  userRole     String                  @default("STUDENT") // TEACHER, STUDENT
+  isHandRaised Boolean                 @default(false)
+  isMicOn      Boolean                 @default(false)
+  joinedAt     DateTime                @default(now())
+}
+
+model VirtualClassroomChatMessage {
+  id         String                  @id @default(cuid())
+  sessionId  String
+  session    VirtualClassroomSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderName String
+  senderRole String                  @default("STUDENT")
+  message    String
+  createdAt  DateTime                @default(now())
+}
+
+// ۶. سامانه نظرسنجی و ارزشیابی ۳۶۰ درجه عملکرد دبیران (Teacher 360 Evaluation)
+model TeacherEvaluationRecord {
+  id                     String   @id @default(cuid())
+  teacherId              String
+  teacherName            String
+  subjectName            String
+  evaluatorRole          String   @default("STUDENT") // STUDENT, PARENT
+  evaluatorId            String?  // جهت جلوگیری از ثبت تکراری در دمو
+  classroomId            String?
+  className              String   @default("کلاس ۱۲/۱ (دوازدهم ریاضی)")
+  academicMastery        Float    @default(5.0) // ۱. تسلط علمی و انتقال مفاهیم
+  gradingFairness        Float    @default(5.0) // ۲. عدالت در نمره‌دهی و تصحیح
+  professionalEthics     Float    @default(5.0) // ۳. اخلاق حرفه‌ای و تعامل محترمانه
+  classroomDiscipline    Float    @default(5.0) // ۴. نظم کلاسی و بودجه‌بندی زمان
+  inspiration            Float    @default(5.0) // ۵. انگیزش‌بخشی و تفکر نقاد
+  parentEngagement       Float    @default(5.0) // ۶. ارتباط مستمر با اولیا
+  overallScore           Float    @default(95.0) // درصد نهایی رضایت (۰ تا ۱۰۰)
+  strengthsText          String?
+  improvementSuggestions String?
+  createdAt              DateTime @default(now())
+}
+
+model TeacherEvaluationSummary {
+  id                     String   @id @default(cuid())
+  teacherId              String   @unique
+  teacherName            String
+  subjectName            String
+  totalEvaluations       Int      @default(0)
+  studentSatisfaction    Float    @default(92.0)
+  parentSatisfaction     Float    @default(90.0)
+  overallScore           Float    @default(91.0)
+  radarMastery           Float    @default(4.8)
+  radarFairness          Float    @default(4.6)
+  radarEthics            Float    @default(4.9)
+  radarDiscipline        Float    @default(4.7)
+  radarInspiration       Float    @default(4.7)
+  radarEngagement        Float    @default(4.5)
+  aiSummaryStrengths     String?
+  aiSummaryImprovements  String?
+  updatedAt              DateTime @updatedAt
+}
+
+// =========================================================================
+// سامانه کلاس آنلاین تصویری، وبینار و تخته‌سیاه تعاملی (Live Virtual Classroom)
+// =========================================================================
+
+model LiveClassSession {
+  id                     String                   @id @default(cuid())
+  classroomId            String
+  classroom              Classroom                @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  hostTeacherId          String
+  hostTeacher            User                     @relation("HostTeacherLiveSessions", fields: [hostTeacherId], references: [id], onDelete: Cascade)
+  title                  String                   // مثلاً: تدریس حسابان: مشتق مراتب بالاتر و خط مماس
+  subjectTitle           String                   @default("حسابان و ریاضی ۳")
+  scheduledStartTime     DateTime?
+  actualStartTime        DateTime?
+  actualEndTime          DateTime?
+  status                 String                   @default("SCHEDULED") // SCHEDULED, LIVE, ENDED
+  whiteboardSnapshotJson String?                  // متادیتای نقاشی‌های تخته و اسلایدها
+  boardPdfUrl            String?                  // آدرس یا مسیر ذخیره جزوه پی‌دی‌اف تخته
+  aiRecapJson            String?                  // خلاصه هوشمند تدریس جلسه تولیدشده توسط AI
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  participants           LiveSessionParticipant[]
+  chats                  LiveSessionChat[]
+  quizzes                LiveSessionQuiz[]
+
+  @@index([classroomId, status])
+  @@index([hostTeacherId, status])
+}
+
+model LiveSessionParticipant {
+  id                  String           @id @default(cuid())
+  sessionId           String
+  session             LiveClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             User             @relation("StudentLiveParticipations", fields: [studentId], references: [id], onDelete: Cascade)
+  joinedAt            DateTime         @default(now())
+  leftAt              DateTime?
+  totalPresentSeconds Int              @default(0) // ثانیه‌های حضور مفید در کلاس
+  handRaised          Boolean          @default(false) // درخواست دست بلند کردن
+  handRaisedAt        DateTime?
+  micAllowed          Boolean          @default(false) // اجازه باز کردن میکروفون توسط دبیر
+  boardAllowed        Boolean          @default(false) // اجازه نوشتن پای تخته
+  attendanceStatus    String           @default("PENDING") // PENDING, PRESENT, LATE, ABSENT
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId, attendanceStatus])
+}
+
+model LiveSessionChat {
+  id          String           @id @default(cuid())
+  sessionId   String
+  session     LiveClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User             @relation("SenderLiveChats", fields: [senderId], references: [id], onDelete: Cascade)
+  messageText String
+  isTeacher   Boolean          @default(false)
+  isQuestion  Boolean          @default(false) // آیا سوال درسی است؟
+  sentAt      DateTime         @default(now())
+
+  @@index([sessionId, sentAt])
+}
+
+model LiveSessionQuiz {
+  id               String           @id @default(cuid())
+  sessionId        String
+  session          LiveClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionText     String           // صورت سوال تستی با فرمول KaTeX
+  optionsJson      String           // آرایه ۴ گزینه به صورت JSON
+  correctAnswer    String           // شماره گزینه صحیح (۱ تا ۴)
+  explanation      String?          // تحلیل تشریحی
+  timeLimitSeconds Int              @default(60) // مدت زمان پاسخگویی (مثلاً ۶۰ ثانیه)
+  status           String           @default("ACTIVE") // ACTIVE, CLOSED
+  responsesJson    String?          // آمار پاسخ‌های ارسال‌شده { "1": 12, "2": 3, "3": 1, "4": 0 }
+  createdAt        DateTime         @default(now())
+
+  @@index([sessionId, status])
+}
+
+model OMRAnswerSheet {
+  id                 String       @id @default(cuid())
+  examId             String?
+  exam               Exam?        @relation(fields: [examId], references: [id], onDelete: SetNull)
+  studentId          String
+  student            User         @relation("StudentOMRSheets", fields: [studentId], references: [id], onDelete: Cascade)
+  sheetTemplate      String       @default("30_QUESTIONS") // 30_QUESTIONS, 60_QUESTIONS, 120_QUESTIONS
+  totalQuestions     Int          @default(30)
+  answerKeyJson      String       // آرایه گزینه‌های صحیح: ["1", "2", "4", ...]
+  studentAnswersJson String       // پاسخ‌های استخراج شده: ["1", "3", null, "4", ...]
+  rawPercentage      Float        @default(0.0) // درصد با احتساب نمره منفی کنکور: (3R - W) / 3T * 100
+  correctCount       Int          @default(0)
+  wrongCount         Int          @default(0)
+  unattemptedCount   Int          @default(0)
+  tScore             Float?       // تراز سازمان سنجش / قلم‌چی
+  rankInClass        Int?
+  scannedImageUrl    String?      // آدرس یا dataURL تصویر اسکن شده
+  diagnosticJson     String?      // تحلیل موضوعی درصدها به تفکیک مباحث
+  scannedAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([studentId, examId])
+  @@index([sheetTemplate])
+}
+

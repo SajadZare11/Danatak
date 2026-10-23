@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338ca" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+  </defs>
+  <!-- Full bleed background for safe area maskable icon -->
+  <rect width="512" height="512" fill="url(#gradMask)" />
+  
+  <g transform="translate(51, 51) scale(0.8)">
+    <circle cx="256" cy="256" r="180" fill="none" stroke="#818cf8" stroke-width="8" opacity="0.5" />
+    <path d="M256 100 L370 150 L370 270 C370 345 256 412 256 412 C256 412 142 345 142 270 L142 150 Z" 
+          fill="#ffffff" fill-opacity="0.15" stroke="#c7d2fe" stroke-width="10" />
+    <path d="M256 160 L350 205 L256 250 L162 205 Z" fill="#ffffff" />
+    <path d="M190 220 L190 270 C190 295 256 315 256 315 C256 315 322 295 322 270 L322 220" 
+          fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+    <text x="256" y="375" font-family="Tahoma, Arial, sans-serif" font-size="52" font-weight="900" fill="#ffffff" text-anchor="middle">
+      داناتک
+    </text>
+  </g>
+</svg>
