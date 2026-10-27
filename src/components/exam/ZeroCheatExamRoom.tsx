@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   ShieldAlert,
   Clock,
@@ -19,8 +19,28 @@ import {
   Save,
   RotateCcw,
   Zap,
+  Copy,
+  Shuffle,
+  FileText,
+  CheckSquare,
+  BookOpen,
+  PenTool,
+  Check,
+  Eye,
 } from "lucide-react";
 import { KaTeXRenderer } from "@/components/common/KaTeXRenderer";
+
+interface AntiCheatSettings {
+  enableFullscreen?: boolean;
+  detectTabSwitch?: boolean;
+  maxTabSwitches?: number;
+  disableCopyPaste?: boolean;
+  enableWatermark?: boolean;
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
+  isSequential?: boolean;
+  negativeMarking?: boolean;
+}
 
 interface ExamDetail {
   id: string;
@@ -30,6 +50,7 @@ interface ExamDetail {
   isSequential: boolean;
   enableAntiCheat: boolean;
   maxTabSwitches: number;
+  antiCheatSettings?: AntiCheatSettings;
   classroom?: {
     name: string;
     school?: { name: string };
@@ -70,7 +91,7 @@ interface ZeroCheatExamRoomProps {
 
 export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   exam,
-  questions,
+  questions: initialQuestions,
   studentId,
   studentName,
   studentNationalId,
@@ -78,6 +99,26 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   initialAttempt,
   onExit,
 }) => {
+  // تنظیمات نهایی ضدتقلب از آزمون یا پیش‌فرض‌ها
+  const antiCheat = useMemo(() => {
+    return (
+      exam.antiCheatSettings || {
+        enableFullscreen: exam.enableAntiCheat,
+        detectTabSwitch: exam.enableAntiCheat,
+        maxTabSwitches: exam.maxTabSwitches || 3,
+        disableCopyPaste: exam.enableAntiCheat,
+        enableWatermark: exam.enableAntiCheat,
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        isSequential: exam.isSequential,
+        negativeMarking: true,
+      }
+    );
+  }, [exam]);
+
+  // سوالات مرتب شده یا تصادفی بر اساس تنظیم معلم
+  const [examQuestions, setExamQuestions] = useState<QuestionItem[]>(initialQuestions);
+
   // مراحل: لابی پیش‌آزمون (lobby)، حین آزمون (active)، کارنامه نهایی (result)
   const [phase, setPhase] = useState<"lobby" | "active" | "result">(
     initialAttempt?.submittedAt ? "result" : "lobby"
@@ -94,11 +135,24 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [warningLogs, setWarningLogs] = useState<string[]>([]);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningTitle, setWarningTitle] = useState("هشدار تخلف امنیتی!");
+  const [warningMessage, setWarningMessage] = useState("");
 
   // نتایج پس از ارسال
   const [resultData, setResultData] = useState<any>(initialAttempt || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAutoSaved, setIsAutoSaved] = useState(true);
+
+  // سوالات را در صورت فعال بودن بهم‌ریختن تصادفی مرتب می‌کنیم
+  useEffect(() => {
+    if (antiCheat.shuffleQuestions && initialQuestions.length > 0) {
+      // ایجاد یک کپی و بهم‌ریختن
+      const shuffled = [...initialQuestions].sort(() => Math.random() - 0.5);
+      setExamQuestions(shuffled);
+    } else {
+      setExamQuestions(initialQuestions);
+    }
+  }, [initialQuestions, antiCheat.shuffleQuestions]);
 
   // بارگذاری پاسخ‌ها از LocalStorage در صورت قطعی اینترنت
   useEffect(() => {
@@ -112,9 +166,9 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     }
   }, [exam.id]);
 
-  // ثبت و کش پاسخ‌ها در LocalStorage
-  const handleSelectOption = (questionId: string, optionId: string) => {
-    const updated = { ...answers, [questionId]: optionId };
+  // ذخیره پاسخ‌ها در استیت و کش LocalStorage
+  const handleAnswerChange = (questionId: string, val: string) => {
+    const updated = { ...answers, [questionId]: val };
     setAnswers(updated);
     setIsAutoSaved(true);
     if (typeof window !== "undefined") {
@@ -129,7 +183,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleSubmitExam(true); // پایان زمان و ارسال اجباری
+          handleSubmitExam(true); // پایان زمان و تحویل اجباری
           return 0;
         }
         return prev - 1;
@@ -139,9 +193,11 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     return () => clearInterval(timer);
   }, [phase]);
 
-  // شنود ضدتقلب: خروج از تب و تغییر فوکوس
+  // شنود ضدتقلب ۱: خروج از تب و تغییر فوکوس (Tab-Switch & Blur Detection)
   useEffect(() => {
-    if (phase !== "active" || !exam.enableAntiCheat) return;
+    if (phase !== "active" || !antiCheat.detectTabSwitch) return;
+
+    const maxLimit = antiCheat.maxTabSwitches || 3;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -151,41 +207,98 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
 
         setTabSwitchCount((prev) => {
           const newCount = prev + 1;
+          setWarningTitle("هشدار خروج از صفحه آزمون!");
+          setWarningMessage(
+            `خروج شما از صفحه آزمون ثبت شد (اخطار ${newCount} از ${maxLimit}). در صورت تکرار، آزمون به صورت خودکار پایان خواهد یافت.`
+          );
           setShowWarningModal(true);
 
-          if (newCount >= exam.maxTabSwitches) {
-            // سلب صلاحیت و ارسال فوری برگه به دلیل تخطی از حد مجاز
+          if (newCount >= maxLimit) {
             setTimeout(() => {
               handleSubmitExam(true);
-            }, 1000);
+            }, 1200);
           }
           return newCount;
         });
       }
     };
 
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [phase, antiCheat.detectTabSwitch, antiCheat.maxTabSwitches]);
+
+  // شنود ضدتقلب ۲: نظارت بر حالت تمام‌صفحه (Fullscreen Monitoring)
+  useEffect(() => {
+    if (phase !== "active" || !antiCheat.enableFullscreen) return;
+
+    const maxLimit = antiCheat.maxTabSwitches || 3;
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        const timeStr = new Date().toLocaleTimeString("fa-IR");
+        const log = `خروج از حالت تمام‌صفحه در ساعت ${timeStr}`;
+        setWarningLogs((prev) => [...prev, log]);
+
+        setTabSwitchCount((prev) => {
+          const newCount = prev + 1;
+          setWarningTitle("خروج از حالت تمام‌صفحه!");
+          setWarningMessage(
+            `شما از حالت تمام‌صفحه خارج شدید (اخطار ${newCount} از ${maxLimit}). لطفاً فوراً تمام‌صفحه را فعال نگه دارید.`
+          );
+          setShowWarningModal(true);
+
+          if (newCount >= maxLimit) {
+            setTimeout(() => {
+              handleSubmitExam(true);
+            }, 1200);
+          }
+          return newCount;
+        });
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [phase, antiCheat.enableFullscreen, antiCheat.maxTabSwitches]);
+
+  // شنود ضدتقلب ۳: مسدودسازی کپی، پیست و کلیدهای میانبر (Copy/Paste & Keydown Blocking)
+  useEffect(() => {
+    if (phase !== "active" || !antiCheat.disableCopyPaste) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // غیرفعال کردن کلیدهای میانبر کپی و پیست و بازرسی
+      // غیرفعال کردن کلیدهای ترکیبی بازرسی، کپی و اسکرین‌شات
       if (
-        (e.ctrlKey && (e.key === "c" || e.key === "v" || e.key === "u" || e.key === "a")) ||
-        e.key === "F12"
+        (e.ctrlKey && (e.key === "c" || e.key === "v" || e.key === "u" || e.key === "a" || e.key === "p")) ||
+        e.key === "F12" ||
+        e.key === "PrintScreen"
       ) {
         e.preventDefault();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const handleCopy = (e: ClipboardEvent) => {
+      // جلوگیری از کپی متن سوالات
+      e.preventDefault();
+    };
+
     window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("cut", handleCopy);
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("cut", handleCopy);
     };
-  }, [phase, exam.enableAntiCheat, exam.maxTabSwitches]);
+  }, [phase, antiCheat.disableCopyPaste]);
 
   // شروع آزمون و ورود به حالت تمام‌صفحه
   const handleStartExam = () => {
-    if (document.documentElement.requestFullscreen) {
+    if (antiCheat.enableFullscreen && document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
     setPhase("active");
@@ -235,49 +348,146 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   const seconds = secondsRemaining % 60;
   const isTimeCritical = secondsRemaining < 300; // کمتر از ۵ دقیقه
 
-  const currentQ = questions[currentIndex];
-  const answeredCount = Object.keys(answers).length;
+  const currentQ = examQuestions[currentIndex];
+  const answeredCount = Object.keys(answers).filter(
+    (k) => answers[k] !== undefined && answers[k] !== null && String(answers[k]).trim() !== ""
+  ).length;
+
+  // دسته‌بندی سوالات موجود در آزمون
+  const countMCQ = examQuestions.filter((q) => q.type === "MULTIPLE_CHOICE").length;
+  const countTF = examQuestions.filter((q) => q.type === "TRUE_FALSE").length;
+  const countDesc = examQuestions.filter((q) => q.type === "DESCRIPTIVE").length;
+  const countBlank = examQuestions.filter((q) => q.type === "FILL_BLANK").length;
+
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case "MULTIPLE_CHOICE":
+        return {
+          label: "چهارگزینه‌ای (تستی)",
+          icon: <CheckSquare className="w-3 h-3" />,
+          style: "bg-indigo-50 text-indigo-700 border-indigo-200",
+        };
+      case "TRUE_FALSE":
+        return {
+          label: "صحیح / غلط",
+          icon: <HelpCircle className="w-3 h-3" />,
+          style: "bg-sky-50 text-sky-700 border-sky-200",
+        };
+      case "DESCRIPTIVE":
+        return {
+          label: "تشریحی (پاسخ باز)",
+          icon: <FileText className="w-3 h-3" />,
+          style: "bg-amber-50 text-amber-800 border-amber-200",
+        };
+      case "FILL_BLANK":
+        return {
+          label: "جای‌خالی (کوتاه‌پاسخ)",
+          icon: <PenTool className="w-3 h-3" />,
+          style: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        };
+      default:
+        return {
+          label: "تستی",
+          icon: <CheckSquare className="w-3 h-3" />,
+          style: "bg-slate-50 text-slate-700 border-slate-200",
+        };
+    }
+  };
 
   // =========================================================================
   // ۱. لابی پیش‌آزمون (Pre-Exam Waiting Lobby)
   // =========================================================================
   if (phase === "lobby") {
     return (
-      <div className="max-w-3xl mx-auto my-8 bg-white rounded-3xl p-8 md:p-12 border border-slate-200 shadow-xl space-y-8 animate-in fade-in">
+      <div className="max-w-3xl mx-auto my-8 bg-white rounded-3xl p-6 md:p-12 border border-slate-200 shadow-xl space-y-7 animate-in fade-in">
         <div className="text-center space-y-3">
           <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
             <Lock className="w-8 h-8 stroke-[2.5]" />
           </div>
           <span className="text-xs bg-rose-50 text-rose-700 font-black px-3 py-1 rounded-full border border-rose-200">
-            سامانه آزمون آنلاین امن و ضدتقلب
+            سامانه آزمون آنلاین امن و چندنوعی (Zero-Cheat Exam Room)
           </span>
-          <h1 className="text-2xl font-black text-slate-900">{exam.title}</h1>
+          <h1 className="text-xl md:text-2xl font-black text-slate-900">{exam.title}</h1>
           <p className="text-xs text-slate-500 max-w-lg mx-auto">
             {schoolName} • کلاس: {exam.classroom?.name} • دبیر: {exam.teacher?.fullName}
           </p>
         </div>
 
-        {/* جعبه راهنما و قوانین آزمون */}
+        {/* جعبه ترکیب سوالات */}
+        <div className="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100 flex flex-wrap items-center justify-around gap-3 text-xs">
+          <div className="text-center">
+            <span className="block text-base font-black text-slate-900">{examQuestions.length}</span>
+            <span className="text-[11px] text-slate-500 font-bold">کل سوالات</span>
+          </div>
+          {countMCQ > 0 && (
+            <div className="text-center text-indigo-700">
+              <span className="block text-base font-black">{countMCQ}</span>
+              <span className="text-[11px] font-bold">تستی</span>
+            </div>
+          )}
+          {countTF > 0 && (
+            <div className="text-center text-sky-700">
+              <span className="block text-base font-black">{countTF}</span>
+              <span className="text-[11px] font-bold">صحیح/غلط</span>
+            </div>
+          )}
+          {countBlank > 0 && (
+            <div className="text-center text-emerald-700">
+              <span className="block text-base font-black">{countBlank}</span>
+              <span className="text-[11px] font-bold">جای‌خالی</span>
+            </div>
+          )}
+          {countDesc > 0 && (
+            <div className="text-center text-amber-800">
+              <span className="block text-base font-black">{countDesc}</span>
+              <span className="text-[11px] font-bold">تشریحی (دبیر)</span>
+            </div>
+          )}
+        </div>
+
+        {/* جعبه راهنما و ضوابط فعال امنیتی تعیین‌شده توسط دبیر */}
         <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-4 text-xs text-slate-700">
           <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600" />
-            دستورالعمل و ضوابط امنیتی آزمون:
+            تدابیر امنیتی و ضوابط تعیین‌شده توسط دبیر:
           </h3>
           <ul className="space-y-2.5 list-disc list-inside leading-relaxed text-slate-600">
             <li>
               مدت زمان آزمون <span className="font-bold text-slate-900">{exam.durationMinutes} دقیقه</span> است و با اتمام زمان، برگه به صورت خودکار تحویل خواهد شد.
             </li>
+            {antiCheat.negativeMarking && (
+              <li>
+                <span className="font-bold text-rose-700">نمره منفی کنکوری:</span> برای سوالات تستی و صحیح/غلط، نمره منفی ۱/۳ فعال است.
+              </li>
+            )}
+            {antiCheat.enableFullscreen && (
+              <li>
+                <span className="font-bold text-indigo-700">قفل تمام‌صفحه:</span> ورود به آزمون منوط به قرارگیری در حالت Fullscreen است.
+              </li>
+            )}
+            {antiCheat.detectTabSwitch && (
+              <li>
+                <span className="font-bold text-rose-700">رصد خروج از تب:</span> حداکثر سقف مجاز خروج از صفحه آزمون{" "}
+                <span className="font-bold text-rose-800">{antiCheat.maxTabSwitches || 3} بار اخطار</span> است و پس از آن برگه مسدود می‌شود.
+              </li>
+            )}
+            {antiCheat.disableCopyPaste && (
+              <li>
+                <span className="font-bold text-slate-900">مسدودسازی کپی و راست‌کلیک:</span> هرگونه کپی‌برداری از سوالات یا کلیدهای میانبر غیرفعال است.
+              </li>
+            )}
+            {antiCheat.enableWatermark && (
+              <li>
+                <span className="font-bold text-indigo-700">واترمارک شناور:</span> کدملی و مشخصات هویتی شما به صورت نیمه‌شفاف در زمینه نمایش داده خواهد شد.
+              </li>
+            )}
+            {antiCheat.isSequential && (
+              <li>
+                <span className="font-bold text-amber-700">ناوبری ترتیبی:</span> پس از پاسخ و رفتن به سوال بعدی، امکان بازگشت به سوالات قبل وجود نخواهد داشت.
+              </li>
+            )}
             <li>
-              تعداد کل سوالات <span className="font-bold text-slate-900">{questions.length} سوال تستی</span> با احتساب نمره منفی یک‌سوم کنکوری است.
-            </li>
-            <li>
-              <span className="font-bold text-rose-700">قفل امنیتی مرورگر:</span> به محض ورود، صفحه تمام‌صفحه (Full-Screen) خواهد شد. هرگونه خروج از تب یا کوچک کردن صفحه تخلف محسوب شده و پس از حداکثر <span className="font-bold text-rose-700">{exam.maxTabSwitches} بار اخطار</span>، آزمون بلافاصله خاتمه می‌یابد.
-            </li>
-            <li>
-              <span className="font-bold text-indigo-700">واترمارک شناور:</span> کد ملی و نام شما به صورت متحرک و نیمه‌شفاف در صفحه درج شده و هرگونه اسکرین‌شات قابل ردیابی است.
-            </li>
-            <li>
-              پاسخ‌های شما بلافاصله پس از کلیک در حافظه محلی ذخیره می‌شوند تا در صورت قطعی اینترنت هیچ پاسخی از دست نرود.
+              تمام پاسخ‌ها پس از وارد کردن در حافظه محلی ذخیره می‌شوند تا در صورت قطعی اینترنت مشکلی پیش نیاید.
             </li>
           </ul>
         </div>
@@ -288,7 +498,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
             <button
               type="button"
               onClick={onExit}
-              className="px-6 py-3 text-xs font-bold text-slate-500 hover:text-slate-800"
+              className="px-6 py-3 text-xs font-bold text-slate-500 hover:text-slate-800 transition"
             >
               انصراف و بازگشت
             </button>
@@ -300,7 +510,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-600/25 transition transform hover:-translate-y-0.5"
           >
             <Maximize2 className="w-4 h-4" />
-            ورود به اتاق آزمون و فعال‌سازی قفل تمام‌صفحه 🔒
+            ورود به اتاق آزمون 🔒
           </button>
         </div>
       </div>
@@ -311,8 +521,13 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   // ۳. کارنامه و نتیجه آزمون (Result Screen)
   // =========================================================================
   if (phase === "result") {
+    const hasPendingDesc =
+      resultData?.hasDescriptive ||
+      resultData?.pendingDescriptiveCount > 0 ||
+      countDesc > 0;
+
     return (
-      <div className="max-w-3xl mx-auto my-8 bg-white rounded-3xl p-8 md:p-12 border border-slate-200 shadow-xl space-y-8 animate-in zoom-in-95">
+      <div className="max-w-4xl mx-auto my-8 bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-xl space-y-7 animate-in zoom-in-95">
         <div className="text-center space-y-3">
           <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
             <Award className="w-8 h-8 stroke-[2.5]" />
@@ -320,11 +535,24 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           <span className="text-xs bg-emerald-50 text-emerald-700 font-black px-3 py-1 rounded-full border border-emerald-200">
             کارنامه رسمی آزمون آنلاین
           </span>
-          <h2 className="text-2xl font-black text-slate-900">{exam.title}</h2>
+          <h2 className="text-xl md:text-2xl font-black text-slate-900">{exam.title}</h2>
           <p className="text-xs text-slate-500">
             دانش‌آموز: {studentName} ({studentNationalId}) • {schoolName}
           </p>
         </div>
+
+        {/* اعلان وضعیت تصحیح هیبرید */}
+        {hasPendingDesc && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900">
+            <FileText className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-black text-amber-950 block mb-0.5">
+                کارنامه اولیه • در انتظار ثبت نمره سوالات تشریحی توسط دبیر:
+              </span>
+              سوالات تستی، صحیح/غلط و جای‌خالی به صورت هوشمند و آنی تصحیح گردیدند. پاسخ‌های تشریحی شما جهت نمره‌گذاری به کارتابل میز تصحیح دبیر محترم ارسال شدند و نمره نهایی پس از ثبت دبیر به‌روز خواهد شد.
+            </div>
+          </div>
+        )}
 
         {/* جعبه تراز و درصد */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -337,7 +565,9 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           </div>
 
           <div className="bg-emerald-50/70 p-5 rounded-2xl border border-emerald-100 text-center">
-            <span className="text-xs text-emerald-700 font-bold">درصد با نمره منفی</span>
+            <span className="text-xs text-emerald-700 font-bold">
+              درصد تستی / محاسباتی {antiCheat.negativeMarking ? "(با نمره منفی)" : ""}
+            </span>
             <div className="text-3xl font-black text-emerald-950 mt-1">
               {resultData?.percentage !== undefined
                 ? `${resultData.percentage}٪`
@@ -358,15 +588,15 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           </div>
         </div>
 
-        {/* جزئیات پاسخگویی */}
+        {/* جزئیات تفکیکی پاسخگویی */}
         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex items-center justify-around text-xs font-bold">
           <div className="text-center text-emerald-700">
-            <span className="block text-xl font-black">{resultData?.correctCount || 3}</span>
+            <span className="block text-xl font-black">{resultData?.correctCount || 0}</span>
             <span>پاسخ صحیح</span>
           </div>
           <div className="h-8 w-px bg-slate-300" />
           <div className="text-center text-rose-700">
-            <span className="block text-xl font-black">{resultData?.wrongCount || 1}</span>
+            <span className="block text-xl font-black">{resultData?.wrongCount || 0}</span>
             <span>پاسخ غلط</span>
           </div>
           <div className="h-8 w-px bg-slate-300" />
@@ -374,13 +604,103 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
             <span className="block text-xl font-black">{resultData?.unansweredCount || 0}</span>
             <span>بدون پاسخ</span>
           </div>
+          {hasPendingDesc && (
+            <>
+              <div className="h-8 w-px bg-slate-300" />
+              <div className="text-center text-amber-800">
+                <span className="block text-xl font-black">
+                  {resultData?.pendingDescriptiveCount || countDesc}
+                </span>
+                <span>در انتظار دبیر</span>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* اعلان انتقال خودکار به دفترچه اشتباهات */}
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-xs text-rose-900">
-          <Sparkles className="w-5 h-5 text-rose-600 shrink-0" />
-          <div>
-            <span className="font-bold">ثبت در دفترچه اشتباهات:</span> تمام سوالات غلط این آزمون به صورت خودکار به دفترچه اشتباهات هوشمند شما اضافه شدند تا بتوانید آنها را در سیستم لایتنر مرور کرده و مجدداً آزمون دهید.
+        {/* لیست و مرور سوالات آزمون با پاسخ دانش‌آموز */}
+        <div className="space-y-4">
+          <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+            مرور پاسخنامه و سوالات آزمون:
+          </h4>
+
+          <div className="space-y-3 max-h-96 overflow-y-auto p-1">
+            {examQuestions.map((q, idx) => {
+              const studentAns = answers[q.id];
+              const typeBadge = getTypeBadge(q.type);
+              const qResult = resultData?.questionResults?.[q.id];
+
+              return (
+                <div
+                  key={q.id}
+                  className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px]">
+                        {idx + 1}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full border font-bold flex items-center gap-1 ${typeBadge.style}`}
+                      >
+                        {typeBadge.icon}
+                        {typeBadge.label}
+                      </span>
+                    </div>
+
+                    <div>
+                      {q.type === "DESCRIPTIVE" ? (
+                        <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          در انتظار تصحیح دبیر
+                        </span>
+                      ) : qResult?.isCorrect ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> پاسخ صحیح
+                        </span>
+                      ) : studentAns ? (
+                        <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                          <XCircle className="w-3 h-3" /> پاسخ نادرست
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          بدون پاسخ
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* صورت سوال */}
+                  <div className="text-xs text-slate-900 leading-relaxed font-medium">
+                    <KaTeXRenderer content={q.content} />
+                  </div>
+
+                  {/* پاسخ وارد شده */}
+                  <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1">
+                    <div className="text-slate-600">
+                      <span className="font-bold">پاسخ شما: </span>
+                      {studentAns ? (
+                        <span className="font-black text-slate-900">
+                          {q.type === "TRUE_FALSE"
+                            ? studentAns === "true" || studentAns === "صحیح"
+                              ? "صحیح"
+                              : "غلط"
+                            : studentAns}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">پاسخی ثبت نکرده‌اید</span>
+                      )}
+                    </div>
+
+                    {q.explanation && (
+                      <div className="text-slate-600 pt-1 text-[11px] border-t border-slate-200/80 mt-1">
+                        <span className="font-bold text-indigo-700">راهنما و پاسخ تشریحی: </span>
+                        <KaTeXRenderer content={q.explanation} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -400,41 +720,48 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
   }
 
   // =========================================================================
-  // ۲. اتاق فعال آزمون با قفل ضدتقلب و واترمارک شناور (Active Exam Room)
+  // ۲. اتاق فعال آزمون با قفل ضدتقلب و پشتیبانی از همه انواع سوالات
   // =========================================================================
   return (
     <div
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        if (antiCheat.disableCopyPaste) e.preventDefault();
+      }}
       className="min-h-screen bg-slate-100 flex flex-col justify-between select-none relative overflow-hidden"
     >
       {/* ===================================================================== */}
       {/* واترمارک امنیتی متحرک (Anti-Leak Floating Watermark) */}
       {/* ===================================================================== */}
-      <div className="fixed inset-0 pointer-events-none z-40 overflow-hidden flex flex-wrap gap-24 opacity-[0.06] rotate-[-25deg] justify-center items-center">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div key={i} className="text-xs font-black text-slate-900 select-none whitespace-nowrap">
-            {studentName} • {studentNationalId} • {schoolName}
-          </div>
-        ))}
-      </div>
+      {antiCheat.enableWatermark && (
+        <div className="fixed inset-0 pointer-events-none z-40 overflow-hidden flex flex-wrap gap-24 opacity-[0.06] rotate-[-25deg] justify-center items-center">
+          {Array.from({ length: 16 }).map((_, i) => (
+            <div key={i} className="text-xs font-black text-slate-900 select-none whitespace-nowrap">
+              {studentName} • {studentNationalId} • {schoolName}
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* هشدار تخلف خروج از تب */}
+      {/* هشدار تخلف خروج از تب / تمام‌صفحه */}
       {showWarningModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border-2 border-rose-500 shadow-2xl text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-8 h-8 stroke-[2.5]" />
             </div>
-            <h3 className="text-base font-black text-slate-900">هشدار تخلف امنیتی!</h3>
-            <p className="text-xs text-rose-700 font-bold">
-              خروج شما از صفحه آزمون به عنوان تخطی از قوانین ثبت شد. (اخطار {tabSwitchCount} از {exam.maxTabSwitches})
-            </p>
+            <h3 className="text-base font-black text-slate-900">{warningTitle}</h3>
+            <p className="text-xs text-rose-700 font-bold leading-relaxed">{warningMessage}</p>
             <p className="text-[11px] text-slate-500">
-              در صورت تکرار و رسیدن به {exam.maxTabSwitches} اخطار، برگه شما بلافاصله مسدود و به صورت خودکار تحویل خواهد شد.
+              توجه داشته باشید که کلیه اقدامات و زمان‌های خروج در لاگ تخلفات امنیتی ثبت می‌گردد.
             </p>
             <button
               type="button"
-              onClick={() => setShowWarningModal(false)}
+              onClick={() => {
+                setShowWarningModal(false);
+                if (antiCheat.enableFullscreen && !document.fullscreenElement) {
+                  document.documentElement.requestFullscreen().catch(() => {});
+                }
+              }}
               className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition"
             >
               متوجه شدم؛ بازگشت به آزمون
@@ -452,12 +779,12 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           <div>
             <h3 className="text-xs font-black">{exam.title}</h3>
             <div className="text-[10px] text-slate-400">
-              سوال {currentIndex + 1} از {questions.length} • {answeredCount} پاسخ ثبت‌شده
+              سوال {currentIndex + 1} از {examQuestions.length} • {answeredCount} پاسخ ثبت‌شده
             </div>
           </div>
         </div>
 
-        {/* زمان‌سنج معکوس با انیمیشن */}
+        {/* زمان‌سنج معکوس */}
         <div
           className={`flex items-center gap-2 px-4 py-1.5 rounded-2xl border font-mono text-xs font-black transition ${
             isTimeCritical
@@ -500,7 +827,21 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
             {/* نوار سربرگ سوال */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 text-xs">
-              <span className="font-bold text-slate-500">سوال شماره {currentIndex + 1}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-500">سوال شماره {currentIndex + 1}</span>
+                {/* برچسب نوع سوال */}
+                {(() => {
+                  const b = getTypeBadge(currentQ.type);
+                  return (
+                    <span
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full border font-bold flex items-center gap-1 ${b.style}`}
+                    >
+                      {b.icon}
+                      {b.label}
+                    </span>
+                  );
+                })()}
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -544,38 +885,144 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
               <KaTeXRenderer content={currentQ.content} />
             </div>
 
-            {/* گزینه‌ها */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
-              {currentQ.options.map((opt) => {
-                const isSelected =
-                  answers[currentQ.id] === opt.id ||
-                  answers[currentQ.id] === String(opt.orderIndex);
+            {/* بخش پاسخگویی بسته به نوع سوال */}
+            {/* ۱. سوال تستی چهارگزینه‌ای (MULTIPLE_CHOICE) */}
+            {currentQ.type === "MULTIPLE_CHOICE" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
+                {currentQ.options.map((opt) => {
+                  const isSelected =
+                    answers[currentQ.id] === opt.id ||
+                    answers[currentQ.id] === String(opt.orderIndex);
 
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleSelectOption(currentQ.id, opt.id)}
-                    className={`flex items-start gap-3 p-4 rounded-2xl border text-right text-xs transition-all ${
-                      isSelected
-                        ? "border-rose-600 bg-rose-50/70 text-rose-950 font-bold ring-2 ring-rose-500/20"
-                        : "border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-800"
-                    }`}
-                  >
-                    <span
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center font-black shrink-0 text-xs ${
-                        isSelected ? "bg-rose-600 text-white" : "bg-white border border-slate-300 text-slate-700"
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleAnswerChange(currentQ.id, opt.id)}
+                      className={`flex items-start gap-3 p-4 rounded-2xl border text-right text-xs transition-all ${
+                        isSelected
+                          ? "border-rose-600 bg-rose-50/70 text-rose-950 font-bold ring-2 ring-rose-500/20"
+                          : "border-slate-200 hover:border-slate-300 bg-slate-50/50 text-slate-800"
                       }`}
                     >
-                      {opt.orderIndex}
-                    </span>
-                    <div className="flex-1 mt-0.5 font-medium">
-                      <KaTeXRenderer content={opt.optionText || opt.text || ""} />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      <span
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center font-black shrink-0 text-xs ${
+                          isSelected
+                            ? "bg-rose-600 text-white"
+                            : "bg-white border border-slate-300 text-slate-700"
+                        }`}
+                      >
+                        {opt.orderIndex}
+                      </span>
+                      <div className="flex-1 mt-0.5 font-medium">
+                        <KaTeXRenderer content={opt.optionText || opt.text || ""} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ۲. سوال صحیح / غلط (TRUE_FALSE) */}
+            {currentQ.type === "TRUE_FALSE" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => handleAnswerChange(currentQ.id, "true")}
+                  className={`p-5 rounded-2xl border flex items-center justify-center gap-3 text-sm font-black transition ${
+                    answers[currentQ.id] === "true" || answers[currentQ.id] === "صحیح"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500/30"
+                      : "border-slate-200 hover:border-emerald-200 bg-slate-50/60 text-slate-700"
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${
+                      answers[currentQ.id] === "true" || answers[currentQ.id] === "صحیح"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    ✓
+                  </div>
+                  <span>صحیح (گزاره درست است)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAnswerChange(currentQ.id, "false")}
+                  className={`p-5 rounded-2xl border flex items-center justify-center gap-3 text-sm font-black transition ${
+                    answers[currentQ.id] === "false" || answers[currentQ.id] === "غلط"
+                      ? "border-rose-600 bg-rose-50 text-rose-950 ring-2 ring-rose-500/30"
+                      : "border-slate-200 hover:border-rose-200 bg-slate-50/60 text-slate-700"
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-black ${
+                      answers[currentQ.id] === "false" || answers[currentQ.id] === "غلط"
+                        ? "bg-rose-600 text-white"
+                        : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
+                    ✗
+                  </div>
+                  <span>غلط (گزاره نادرست است)</span>
+                </button>
+              </div>
+            )}
+
+            {/* ۳. سوال جای‌خالی / کوتاه‌پاسخ (FILL_BLANK) */}
+            {currentQ.type === "FILL_BLANK" && (
+              <div className="pt-2 space-y-3">
+                <label className="block text-xs font-bold text-slate-700">
+                  پاسخ یا عدد نهایی را در کادر زیر وارد کنید:
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={answers[currentQ.id] || ""}
+                    onChange={(e) => handleAnswerChange(currentQ.id, e.target.value)}
+                    placeholder="مثال: ۶ یا عبارت نهایی..."
+                    className="w-full p-4 rounded-2xl border-2 border-emerald-300 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/20 bg-emerald-50/20 text-slate-900 font-bold text-sm outline-none transition"
+                  />
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600">
+                    <PenTool className="w-5 h-5" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  💡 راهنما: عدد یا واژه کلیدی را به صورت دقیق و بدون کلمات اضافه وارد نمایید.
+                </p>
+              </div>
+            )}
+
+            {/* ۴. سوال تشریحی / بازپاسخ (DESCRIPTIVE) */}
+            {currentQ.type === "DESCRIPTIVE" && (
+              <div className="pt-2 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-700" />
+                    پاسخ تشریحی و مراحل استدلال ریاضی:
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    {(answers[currentQ.id] || "").length} کاراکتر
+                  </span>
+                </div>
+
+                <textarea
+                  rows={5}
+                  value={answers[currentQ.id] || ""}
+                  onChange={(e) => handleAnswerChange(currentQ.id, e.target.value)}
+                  placeholder="پاسخ تشریحی، فرمول‌ها یا اثبات خود را اینجا بنویسید... (این بخش توسط دبیر محترم بررسی و نمره‌گذاری خواهد شد)"
+                  className="w-full p-4 rounded-2xl border-2 border-amber-200 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/20 bg-amber-50/10 text-slate-900 text-xs leading-relaxed outline-none transition font-sans"
+                />
+
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900">
+                  <Sparkles className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    پاسخ تشریحی شما پس از اتمام آزمون به کارتابل دبیر ارسال و نمره آن به کارنامه افزوده خواهد شد.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-12">سوالی یافت نشد.</div>
@@ -586,9 +1033,9 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
       <footer className="sticky bottom-0 z-30 bg-white border-t border-slate-200 px-4 md:px-8 py-3.5 flex items-center justify-between">
         <button
           type="button"
-          disabled={currentIndex === 0 || exam.isSequential}
+          disabled={currentIndex === 0 || antiCheat.isSequential}
           onClick={() => setCurrentIndex((prev) => prev - 1)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-40"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-4 h-4" />
           سوال قبلی
@@ -596,8 +1043,11 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
 
         {/* لیست شماره سوالات به صورت حباب‌های کلیک‌پذیر */}
         <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto max-w-md px-2">
-          {questions.map((q, idx) => {
-            const isAns = !!answers[q.id];
+          {examQuestions.map((q, idx) => {
+            const isAns =
+              answers[q.id] !== undefined &&
+              answers[q.id] !== null &&
+              String(answers[q.id]).trim() !== "";
             const isCur = idx === currentIndex;
             const isFlg = flaggedQuestions[q.id];
 
@@ -610,9 +1060,11 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
               <button
                 key={q.id}
                 type="button"
-                disabled={exam.isSequential && idx < currentIndex}
+                disabled={antiCheat.isSequential && idx < currentIndex}
                 onClick={() => setCurrentIndex(idx)}
-                className={`w-7 h-7 rounded-lg text-xs flex items-center justify-center transition shrink-0 ${badgeStyle}`}
+                className={`w-7 h-7 rounded-lg text-xs flex items-center justify-center transition shrink-0 ${badgeStyle} ${
+                  antiCheat.isSequential && idx < currentIndex ? "opacity-30 cursor-not-allowed" : ""
+                }`}
               >
                 {idx + 1}
               </button>
@@ -622,7 +1074,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
 
         <button
           type="button"
-          disabled={currentIndex + 1 >= questions.length}
+          disabled={currentIndex + 1 >= examQuestions.length}
           onClick={() => setCurrentIndex((prev) => prev + 1)}
           className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition disabled:opacity-40"
         >

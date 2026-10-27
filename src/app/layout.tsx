@@ -43,7 +43,7 @@ export default function RootLayout({
         <RoleProvider>
           <PwaRegistration />
           <RoleSwitcherBar />
-          <main className="min-h-[calc(100vh-65px)]">{children}</main>
+          <main className="min-h-[calc(100vh-56px)]">{children}</main>
         </RoleProvider>
       </body>
     </html>

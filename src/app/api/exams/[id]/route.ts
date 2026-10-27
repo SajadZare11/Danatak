@@ -44,12 +44,33 @@ export async function GET(
       return NextResponse.json({ error: "آزمون مورد نظر یافت نشد" }, { status: 404 });
     }
 
-    // استخراج شناسه‌های سوالات
+    // استخراج شناسه‌های سوالات و تنظیمات ضدتقلب
     let questionIds: string[] = [];
+    let antiCheatSettings: any = null;
     try {
-      questionIds = JSON.parse(exam.questionsJson);
+      const parsed = JSON.parse(exam.questionsJson);
+      if (Array.isArray(parsed)) {
+        questionIds = parsed;
+      } else if (parsed && typeof parsed === "object") {
+        questionIds = parsed.questionIds || [];
+        antiCheatSettings = parsed.antiCheatSettings || null;
+      }
     } catch {
       questionIds = [];
+    }
+
+    if (!antiCheatSettings) {
+      antiCheatSettings = {
+        enableFullscreen: exam.enableAntiCheat,
+        detectTabSwitch: exam.enableAntiCheat,
+        maxTabSwitches: exam.maxTabSwitches,
+        disableCopyPaste: exam.enableAntiCheat,
+        enableWatermark: exam.enableAntiCheat,
+        shuffleQuestions: false,
+        shuffleOptions: false,
+        isSequential: exam.isSequential,
+        negativeMarking: true,
+      };
     }
 
     // واکشی کامل سوالات و گزینه‌ها
@@ -103,7 +124,10 @@ export async function GET(
     }
 
     return NextResponse.json({
-      exam,
+      exam: {
+        ...exam,
+        antiCheatSettings,
+      },
       questions: sortedQuestions,
       attempt,
       studentInfo,

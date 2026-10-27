@@ -20,6 +20,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* اسکرول‌بار پنهان اما کارا */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* اسکرول‌بار سفارشی */
 ::-webkit-scrollbar {
   width: 6px;

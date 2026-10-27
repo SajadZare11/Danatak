@@ -3,495 +3,331 @@
 import React from "react";
 import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
-import { KaTeXRenderer } from "@/components/common/KaTeXRenderer";
 import {
   GraduationCap,
   Briefcase,
   Shield,
   Compass,
   Users,
-  BookOpen,
   Layers,
-  FileCheck2,
-  Lock,
-  FileSpreadsheet,
-  Zap,
   ArrowLeft,
-  CheckCircle,
   Sparkles,
-  Edit3,
-  Box,
-  CreditCard,
+  BookOpen,
   Calendar,
-  Smartphone,
-  Server,
-  Play,
-  HeartHandshake,
+  Lock,
+  Edit3,
   BarChart3,
-  MessageSquare,
-  BookMarked,
+  CheckCircle2,
+  FileSpreadsheet,
+  Box,
   Video,
-  Award,
+  Play,
+  Zap,
 } from "lucide-react";
 
 export default function HomePage() {
-  const { currentRole, currentUser } = useRole();
+  const { isAuthenticated, currentUser } = useRole();
 
-  const modules = [
+  const rolePortals = [
     {
-      id: "module-1",
-      title: "۱. پنل ماژولار معلم و پروفایل ۳ تب",
-      desc: "مسیر معلم ⬅ لیست کلاس ⬅ پروفایل ۳ تب دانش‌آموز (اطلاعات، پورتفولیو، ثبت درصد یادگیری و تکلیف جبرانی) + صف مداخلات و تصحیح و مودال ⚡",
-      icon: <Briefcase className="w-5 h-5 text-indigo-600" />,
-      tag: "روز ۱ و ۲ (عملیاتی)",
-      status: "ورود به پنل معلم",
-      href: "/teacher",
-      isReady: true,
-      badgeColor: "bg-indigo-100 text-indigo-800",
+      id: "student-portal",
+      role: "STUDENT",
+      title: "پرتال دانش‌آموزان",
+      badge: "فضای یادگیری و تکالیف",
+      tagline: "تکالیف درسی، آزمون‌های آنلاین، مرور لایتنر و کارنامه",
+      icon: <GraduationCap className="w-7 h-7 text-emerald-600" />,
+      color: "border-emerald-200 hover:border-emerald-400 bg-emerald-50/40",
+      btnColor: "bg-emerald-600 hover:bg-emerald-700 text-white",
+      href: "/login?role=STUDENT",
+      points: [
+        "مشاهده و حل آنلاین تکالیف هفتگی",
+        "دفترچه اشتباهات هوشمند و مرور در جعبه ۵ خانه لایتنر",
+        "شرکت در آزمون‌های تستی و تشریحی با نمره و تراز آنی",
+        "دسترسی به برنامه کلاسی، کتابخانه و کلاس آنلاین تصویری",
+      ],
     },
     {
-      id: "module-2",
-      title: "۲. رادار تسلط و گراف پیش‌نیازها",
-      desc: "نمودار راداری عنکبوتی Recharts، گراف پیوسته پیش‌نیازها از دهم تا دوازدهم و موتور عارضه‌یابی ریشه‌ای ضعف با تست تشخیصی",
-      icon: <Layers className="w-5 h-5 text-blue-600" />,
-      tag: "روز ۳ (عملیاتی)",
-      status: "ورود به رادار و گراف تسلط",
-      href: "/mastery",
-      isReady: true,
-      badgeColor: "bg-blue-100 text-blue-800",
+      id: "teacher-portal",
+      role: "TEACHER",
+      title: "پرتال دبیران",
+      badge: "میز کار آموزشی و تدریس",
+      tagline: "مدیریت کلاس، ثبت درصد یادگیری، صدور تکالیف و تصحیح",
+      icon: <Briefcase className="w-7 h-7 text-indigo-600" />,
+      color: "border-indigo-200 hover:border-indigo-400 bg-indigo-50/40",
+      btnColor: "bg-indigo-600 hover:bg-indigo-700 text-white",
+      href: "/login?role=TEACHER",
+      points: [
+        "لیست کلاسی، حضور و غیاب سریع و پورتفولیوی دانش‌آموزان",
+        "میز قلم‌گذاری دیجیتال جهت تصحیح برگه‌ها با ابزار Canvas",
+        "بانک سوالات طبقه‌بندی‌شده و استودیوی آزمون‌ساز آنلاین",
+        "برگزاری کلاس آنلاین، اشتراک تخته هوشمند و جزوات",
+      ],
     },
     {
-      id: "module-3",
-      title: "۳. بانک سوالات و استودیوی KaTeX",
-      desc: "دسته‌بندی چندسطحی بر اساس کتاب و مبحث، جعبه‌ابزار فرمول‌نویس KaTeX با پیش‌نمایش آنی، ورود گروهی JSON و پاسخنامه کلیدی/تشریحی",
-      icon: <BookOpen className="w-5 h-5 text-teal-600" />,
-      tag: "روز ۴ (عملیاتی)",
-      status: "ورود به بانک سوالات",
-      href: "/questions",
-      isReady: true,
-      badgeColor: "bg-teal-100 text-teal-800",
+      id: "parent-portal",
+      role: "PARENT",
+      title: "پرتال اولیا",
+      badge: "نظارت و پیگیری وضعیت فرزند",
+      tagline: "رهگیری زنده حضور و غیاب، کارنامه، اقساط شهریه و پیام‌ها",
+      icon: <Users className="w-7 h-7 text-rose-600" />,
+      color: "border-rose-200 hover:border-rose-400 bg-rose-50/40",
+      btnColor: "bg-rose-600 hover:bg-rose-700 text-white",
+      href: "/login?role=PARENT",
+      points: [
+        "گزارش لحظه‌ای تردد و حضور و غیاب فرزند در مدرسه",
+        "مشاهده کارنامه جامع، نمودار روند تحصیلی و تحلیل نمرات",
+        "سامانه شفاف اقساط شهریه و شبیه‌ساز پرداخت شتاب",
+        "ارتباط مستقیم، محرمانه و دوسویه با کادر آموزشی و اداری",
+      ],
     },
     {
-      id: "module-4",
-      title: "۴. تکلیف هوشمند دو منظوره و تمرین تا ۲۰",
-      desc: "صدور تکلیف تطبیقی معلم با کشوی تعویض سوال (Preview & Swap)، کارتابل دانش‌آموز، حل آنلاین، نسخه پرینتی A4 با هدر استاندارد مدارس، ثبت سریع پاسخ‌برگ و موتور تمرین تا ۲۰ ایندورا",
-      icon: <FileCheck2 className="w-5 h-5 text-emerald-600" />,
-      tag: "روز ۵ (عملیاتی)",
-      status: "ورود به کارتابل تکالیف",
-      href: "/student",
-      isReady: true,
-      badgeColor: "bg-emerald-100 text-emerald-800",
+      id: "principal-portal",
+      role: "PRINCIPAL",
+      title: "پرتال مدیریت و مشاور",
+      badge: "نظارت کلان و هدایت تحصیلی",
+      tagline: "ماتریس سلامت مدرسه، خروجی سیدا، تحلیل آماری و مشاوره",
+      icon: <Shield className="w-7 h-7 text-purple-600" />,
+      color: "border-purple-200 hover:border-purple-400 bg-purple-50/40",
+      btnColor: "bg-purple-600 hover:bg-purple-700 text-white",
+      href: "/login?role=PRINCIPAL",
+      points: [
+        "داشبورد کلان شاخص‌های یادگیری و غربالگری دانش‌آموزان در معرض افت",
+        "تولید فایل اکسل استاندارد منطبق بر فرمت سامانه سیدا (Sida)",
+        "سامانه پیامک هوشمند هشدارهای غیبت و افت تراز به اولیا",
+        "برنامه‌ریزی مطالعاتی هوشمند، ترازسنجی و ارزشیابی دبیران",
+      ],
+    },
+  ];
+
+  const highlights = [
+    {
+      icon: <Layers className="w-5 h-5 text-indigo-600" />,
+      title: "رادار تسلط و زنجیره پیش‌نیازها",
+      desc: "نمایش گراف پیوسته پیش‌نیاز مباحث از دهم تا دوازدهم و عارضه‌یابی ریشه‌ای نقاط ضعف هر دانش‌آموز.",
     },
     {
-      id: "module-5",
-      title: "۵. میز قلم‌گذاری، دفترچه اشتباهات و لایتنر ۵ خانه",
-      desc: "میز تصحیح یکپارچه معلم با ابزار قلم Canvas روی برگه، انتقال خودکار غلط‌ها به دفترچه اشتباهات دانش‌آموز با تگ‌گذاری ریشه‌ای، و سیستم مرور فاصله‌دار لایتنر",
+      icon: <Zap className="w-5 h-5 text-amber-600" />,
+      title: "تکلیف هوشمند و تمرین تعاملی",
+      desc: "صدور تکالیف هدفمند متناسب با سطح یادگیری با بازخورد گام‌به‌گام و راهکارهای جبرانی فوری.",
+    },
+    {
       icon: <Edit3 className="w-5 h-5 text-rose-600" />,
-      tag: "روز ۶ (عملیاتی)",
-      status: "ورود به دفترچه اشتباهات و لایتنر",
-      href: "/student",
-      isReady: true,
-      badgeColor: "bg-rose-100 text-rose-800",
+      title: "میز تصحیح با قلم‌گذاری دیجیتال",
+      desc: "تصحیح برگه‌ها و تکالیف تشریحی با قلم روان و انتقال خودکار غلط‌ها به دفترچه اشتباهات فردی.",
     },
     {
-      id: "module-6",
-      title: "۶. آزمون آنلاین ضدتقلب و تراز کنکوری",
-      desc: "اتاق آزمون با قفل تمام‌صفحه، مانیتورینگ خروج از تب با سلب صلاحیت خودکار، واترمارک شناور کدملی، کش آفلاین LocalStorage، نمره منفی ۱/۳ و تراز سنجش",
       icon: <Lock className="w-5 h-5 text-purple-600" />,
-      tag: "روز ۷ (عملیاتی)",
-      status: "ورود به آزمون ضدتقلب",
-      href: "/student",
-      isReady: true,
-      badgeColor: "bg-purple-100 text-purple-800",
+      title: "آزمون آنلاین ایمن و تراز کنکوری",
+      desc: "محیط آزمون ضدتقلب، ذخیره‌سازی محلی پاسخ‌ها، نمره منفی ۱/۳ و محاسبه دقیق تراز و صدک کشوری.",
     },
     {
-      id: "module-7",
-      title: "۷. ماتریس سلامت مدرسه، سیدا و انضباط",
-      desc: "داشبورد ارشد مدیر، نقشه حرارتی نقاط کور یادگیری، رجیستری دانش‌آموزان لب مرز افت، حضور/غیاب سریع، کارتکس انضباط و صدور فایل اکسل رسمی سیدا",
-      icon: <FileSpreadsheet className="w-5 h-5 text-amber-600" />,
-      tag: "روز ۸ (عملیاتی)",
-      status: "ورود به پنل مدیر و سیدا",
-      href: "/principal",
-      isReady: true,
-      badgeColor: "bg-amber-100 text-amber-800",
+      icon: <Box className="w-5 h-5 text-emerald-600" />,
+      title: "جعبه مرور فاصله‌دار لایتنر",
+      desc: "تثبیت پایدار مفاهیم کلیدی و فرمول‌ها در حافظه بلندمدت بر اساس منحنی علمی فراموشی ابینگهاوس.",
     },
     {
-      id: "module-8",
-      title: "۸. پرتال مشاور و برنامه‌ریز مطالعاتی AI",
-      desc: "نظارت بر ساعت مطالعه هفتگی و تراز، تحلیل عارضه‌یابی و ابزار تولید خودکار جدول برنامه مطالعاتی هفتگی هوشمند منطبق بر نقاط ضعف کارنامه",
-      icon: <Compass className="w-5 h-5 text-cyan-600" />,
-      tag: "روز ۹ (عملیاتی)",
-      status: "ورود به پنل مشاور تحصیلی",
-      href: "/counselor",
-      isReady: true,
-      badgeColor: "bg-cyan-100 text-cyan-800",
-    },
-    {
-      id: "module-9",
-      title: "۹. پورتال اولیا، اقساط شهریه و پیامک",
-      desc: "خلاصه وضعیت هوشمند دانش‌آموز برای والدین، رهگیری تردد، کارت مالی اقساط و شبیه‌ساز پرداخت آنلاین شاپرک/شتاب و لاگ دیسپچ پیامک",
-      icon: <Users className="w-5 h-5 text-emerald-600" />,
-      tag: "روز ۹ (عملیاتی)",
-      status: "ورود به پورتال اولیا",
-      href: "/parent",
-      isReady: true,
-      badgeColor: "bg-emerald-100 text-emerald-800",
-    },
-    {
-      id: "module-10",
-      title: "۱۰. تور جامع تعاملی و اپلیکیشن PWA ملی",
-      desc: "سناریوی گام‌به‌گام ۷ مرحله‌ای End-to-End، نصب آسان PWA بدون نیاز به استور، استقرار ۱۰۰٪ لوکال منطبق بر اینترانت ملی بدون هیچ وابستگی خارجی",
-      icon: <Sparkles className="w-5 h-5 text-amber-500" />,
-      tag: "روز ۱۰ (فینال)",
-      status: "شروع تور تعاملی جامع",
-      href: "/demo",
-      isReady: true,
-      badgeColor: "bg-gradient-to-r from-amber-200 to-amber-100 text-amber-900 border border-amber-300 font-black",
-    },
-    {
-      id: "module-11",
-      title: "۱۱. داشبورد ارزیابی آماری و روان‌سنجی نمرات (SPSS Suite)",
-      desc: "محاسبه انحراف معیار، CV، منحنی نرمال گاوسی، نمودار جعبه‌ای چارک‌ها، رگرسیون همبستگی مطالعه با نمره، پایایی آلفای کرونباخ، غربالگری تریاژ و صدور کارنامه چاپی A4",
-      icon: <BarChart3 className="w-5 h-5 text-indigo-500" />,
-      tag: "سوئیت آماری جامع",
-      status: "ورود به داشبورد تحلیلی نمرات",
-      href: "/analytics",
-      isReady: true,
-      badgeColor: "bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold",
-    },
-    {
-      id: "module-12",
-      title: "۱۲. پیام‌رسان داخلی و تالار رفع اشکال علمی",
-      desc: "کانال اعلانات رسمی مدرسه، تالار پرسش‌وپاسخ درسی با پشتیبانی فرمول‌نویسی KaTeX، و ارتباط مستقیم و محرمانه اولیا با کادر دبیرستان",
-      icon: <MessageSquare className="w-5 h-5 text-cyan-500" />,
-      tag: "ارتباطات چندطرفه",
-      status: "ورود به پیام‌رسان و رفع اشکال",
-      href: "/messages",
-      isReady: true,
-      badgeColor: "bg-cyan-100 text-cyan-900 border border-cyan-300 font-bold",
-    },
-    {
-      id: "module-13",
-      title: "۱۳. برنامه هفتگی کلاسی و تقویم تحصیلی هوشمند",
-      desc: "جدول ساعات درسی شنبه تا چهارشنبه (زنگ‌های ۱ تا ۴)، رصد زنده زنگ در حال برگزاری، تقویم زمانی امتحانات و یادآور مهلت تکالیف",
-      icon: <Calendar className="w-5 h-5 text-amber-500" />,
-      tag: "مدیریت زمان و تقویم",
-      status: "مشاهده برنامه و تقویم",
-      href: "/schedule",
-      isReady: true,
-      badgeColor: "bg-amber-100 text-amber-900 border border-amber-300 font-bold",
-    },
-    {
-      id: "module-14",
-      title: "۱۴. کتابخانه دیجیتال، مخزن جزوات و اسناد آموزشی",
-      desc: "مطالعه و پیش‌نمایش مستقیم PDF درون مرورگر، دسته‌بندی ۳ سطحی کتب رسمی و جزوات طلایی دبیران، و آرشیو نمونه‌سوالات نهایی و کنکور",
-      icon: <BookMarked className="w-5 h-5 text-emerald-500" />,
-      tag: "مخزن محتوا و جزوه‌سرا",
-      status: "ورود به کتابخانه دیجیتال",
-      href: "/library",
-      isReady: true,
-      badgeColor: "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold",
-    },
-    {
-      id: "module-15",
-      title: "۱۵. سامانه هوشمند پیامک و هشدارهای خودکار اولیا (SMS Gateway)",
-      desc: "ارسال آنی پیامک غیبت زنده، افت تراز در آزمون، سررسید اقساط شهریه، شبیه‌ساز زنده موبایل، و خروجی فایل اکسل گزارش ارسالی‌ها",
-      icon: <Smartphone className="w-5 h-5 text-rose-500" />,
-      tag: "اطلاع‌رسانی پیامکی و هشدارهای آنی",
-      status: "ورود به مرکز پیامک و خروجی اکسل",
-      href: "/sms",
-      isReady: true,
-      badgeColor: "bg-rose-100 text-rose-900 border border-rose-300 font-bold",
-    },
-    {
-      id: "module-17",
-      title: "۱۶. کلاس آنلاین تصویری، تخته هوشمند و اشتراک اسلاید (Virtual Classroom)",
-      desc: "برگزاری کلاس زنده با وب‌کم دبیر و دانش‌آموز، تخته سفید با درج فرمول‌های KaTeX، اشتراک صفحات کتاب درسی، چت زنده، دست بلند کردن و آرشیو ضبط جلسه",
-      icon: <Video className="w-5 h-5 text-purple-500" />,
-      tag: "آموزش مجازی و وبینار تعاملی",
-      status: "ورود به کلاس آنلاین زنده",
-      href: "/classroom",
-      isReady: true,
-      badgeColor: "bg-purple-100 text-purple-900 border border-purple-300 font-bold",
-    },
-    {
-      id: "module-18",
-      title: "۱۷. سامانه ارزشیابی ۳۶۰ درجه عملکرد دبیران (Teacher 360 Evaluation)",
-      desc: "نظرسنجی محرمانه اولیا و دانش‌آموزان در ۶ شاخص استاندارد، نمودار راداری عملکرد، تحلیل هوش مصنوعی و صدور کارنامه چاپی A4",
-      icon: <Award className="w-5 h-5 text-amber-500" />,
-      tag: "نظارت کیفی و تعالی آموزش",
-      status: "ورود به ارزشیابی و کارنامه A4",
-      href: "/evaluation",
-      isReady: true,
-      badgeColor: "bg-amber-100 text-amber-900 border border-amber-300 font-bold",
+      icon: <FileSpreadsheet className="w-5 h-5 text-blue-600" />,
+      title: "سازگاری کامل با سیدا و آموزش و پرورش",
+      desc: "امکان خروجی اکسل رسمی نمرات با هدر مدارس و بارگذاری سریع در سامانه سیدای وزارت آموزش و پرورش.",
     },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-      {/* بنر گرند فیناله و هدایت به سناریوی جامع دمو */}
-      <section className="bg-gradient-to-l from-indigo-950 via-indigo-900 to-slate-950 rounded-3xl p-6 sm:p-8 text-white shadow-2xl border border-indigo-700/50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-16 pb-16">
+      {/* ۱. بخش سربرگ اصلی (Hero Section) */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900 text-white pt-12 pb-20 px-4">
+        {/* افکت نور ملایم پس‌زمینه */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-3xl">
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-indigo-500/20 text-amber-300 border border-amber-400/40 text-xs px-3.5 py-1.5 rounded-full font-bold shadow-inner">
-              <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>پایان موفقیت‌آمیز فاز نهایی (روز ۱۰): سامانه ۱۰۰٪ تکمیل و آماده تحویل است</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
-              درود، {currentUser.fullName} عزیز! 👋
-            </h1>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              به سامانه «داناتک»؛ سامانه هوشمند تسلط و ارتقای تحصیلی (با الگوبرداری از استانداردهای نوین آموزشی و مدارس سمپاد) خوش آمدید. کلیه ماژول‌های ۵ نقش (معلم، دانش‌آموز، مدیر، مشاور، اولیا) و زیرساخت PWA و اینترانت ملی با موفقیت مستقر شده و یکپارچه می‌باشند.
-            </p>
-
-            <div className="pt-2 flex flex-wrap gap-3">
-              <Link
-                href="/demo"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 border border-amber-300"
-              >
-                <Play className="w-4 h-4 fill-slate-950" />
-                اجرای سناریوی دمو تعاملی (End-to-End Tour)
-                <ArrowLeft className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/analytics"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-2xl shadow-md transition border border-indigo-400/30"
-              >
-                <BarChart3 className="w-4 h-4 text-amber-300" />
-                داشبورد آمار و روان‌سنجی نمرات (SPSS)
-              </Link>
-              <Link
-                href="/student"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md transition"
-              >
-                <GraduationCap className="w-4 h-4" />
-                میز کار دانش‌آموز و لایتنر
-              </Link>
-              <Link
-                href="/teacher"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md transition"
-              >
-                <Briefcase className="w-4 h-4" />
-                میز قلم‌گذاری دبیر
-              </Link>
-              <Link
-                href="/principal"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-2xl border border-slate-700 shadow-md transition"
-              >
-                <Shield className="w-4 h-4" />
-                مدیر و صدور سیدا
-              </Link>
-              <Link
-                href="/counselor"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <Compass className="w-4 h-4" />
-                مشاور و هوش مصنوعی
-              </Link>
-              <Link
-                href="/parent"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <Users className="w-4 h-4" />
-                پورتال اولیا و شتاب
-              </Link>
-              <Link
-                href="/messages"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <MessageSquare className="w-4 h-4 text-cyan-400" />
-                پیام‌ها و رفع اشکال
-              </Link>
-              <Link
-                href="/schedule"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <Calendar className="w-4 h-4 text-amber-400" />
-                برنامه و تقویم
-              </Link>
-              <Link
-                href="/library"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <BookMarked className="w-4 h-4 text-emerald-400" />
-                کتابخانه و جزوات
-              </Link>
-              <Link
-                href="/sms"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition"
-              >
-                <Smartphone className="w-4 h-4 text-rose-400" />
-                سامانه هوشمند پیامک
-              </Link>
-              <Link
-                href="/classroom"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-xs rounded-2xl border border-rose-400/40 transition shadow-lg animate-pulse"
-              >
-                <Video className="w-4 h-4 text-white" />
-                کلاس آنلاین زنده 🔴
-              </Link>
-              <Link
-                href="/evaluation"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs rounded-2xl border border-amber-400/40 transition shadow-md"
-              >
-                <Award className="w-4 h-4 text-amber-400" />
-                ارزشیابی دبیران ⭐
-              </Link>
-            </div>
+        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
+          <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-xs px-4 py-1.5 rounded-full font-bold">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>سامانه هوشمند ارتقای تحصیلی و مدیریت یکپارچه مدرسه</span>
           </div>
 
-          <div className="flex flex-col sm:flex-row lg:flex-col items-center gap-4 bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/15 shadow-xl">
-            <div className="flex items-center gap-3">
-              <img
-                src={currentUser.avatarUrl}
-                alt={currentUser.fullName}
-                className="w-14 h-14 rounded-full border-2 border-amber-400 shadow-md bg-slate-800"
-              />
-              <div>
-                <div className="font-bold text-base text-white">{currentUser.fullName}</div>
-                <div className="text-xs text-indigo-200">کد ملی: {currentUser.nationalId}</div>
-                <div className="text-xs text-slate-300 mt-0.5">{currentUser.description}</div>
-              </div>
-            </div>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight sm:leading-tight">
+            سامانه هوشمند یادگیری و تسلط تحصیلی <span className="bg-gradient-to-r from-amber-300 via-orange-300 to-indigo-300 bg-clip-text text-transparent">«داناتک»</span>
+          </h1>
 
-            <div className="w-full pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-200 gap-4">
-              <span className="flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                PWA فعال
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Server className="w-3.5 h-3.5 text-blue-400" />
-                اینترانت ملی ۱۰۰٪
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
+          <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+            محیطی یکپارچه، خلوت و هدفمند برای تعامل دانش‌آموزان، دبیران، اولیا و کادر مدیریت مدرسه؛ با رویکرد ارتقای تسلط، تحلیل ریشه‌ای یادگیری و تکالیف هوشمند.
+          </p>
 
-      {/* بنر وضعیت آمادگی شبکه ملی اطلاعات و PWA */}
-      <section className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
-            <CheckCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-sm font-black text-emerald-950">
-              سازگاری ۱۰۰٪ با شبکه ملی اطلاعات (اینترانت ملی) و حالت آفلاین PWA
-            </h3>
-            <p className="text-xs text-emerald-800 mt-0.5">
-              تمامی فونت‌ها، اسکریپت‌ها، استایل‌های KaTeX و آواتارها به طور محلی میزبانی می‌شوند و سامانه در بستر بسته بدون اتصال به وب جهانی با حداکثر سرعت اجرا می‌گردد.
-            </p>
-          </div>
-        </div>
-        <Link
-          href="/demo"
-          className="shrink-0 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl transition flex items-center gap-1.5"
-        >
-          مشاهده در سناریوی دمو
-          <ArrowLeft className="w-3.5 h-3.5" />
-        </Link>
-      </section>
-
-      {/* پیش‌نمایش تست فرمول‌های KaTeX */}
-      <section className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-              $\Sigma$
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-800">
-                موتور رندر فرمول‌های ریاضی و فیزیک (KaTeX لوکال)
-              </h2>
-              <p className="text-xs text-slate-500">
-                کاملاً مستقل از CDN خارجی - نمونه سوالات کنکور و نهایی تعبیه‌شده در دیتابیس
-              </p>
-            </div>
-          </div>
-          <span className="inline-flex items-center text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            <CheckCircle className="w-3.5 h-3.5 ml-1" /> فعال و آماده
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm">
-            <span className="text-xs font-bold text-indigo-600 block mb-1">
-              نمونه سوال تستی (مشتق کسری پایه دوازدهم):
-            </span>
-            <KaTeXRenderer
-              content="مشتق تابع $f(x) = \frac{2x - 1}{x^2 + 1}$ در نقطه $x = 1$ برابر کدام است؟"
-            />
-            <div className="mt-2 text-xs text-slate-500 bg-white p-2 rounded border border-slate-200">
-              <KaTeXRenderer
-                content="فرمول راه حل: $$f'(x) = \frac{2(x^2+1) - 2x(2x-1)}{(x^2+1)^2} \implies f'(1) = \frac{1}{2}$$"
-              />
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm">
-            <span className="text-xs font-bold text-indigo-600 block mb-1">
-              نمونه سوال تشریحی (قاعده زنجیره‌ای و مثلثات):
-            </span>
-            <KaTeXRenderer
-              content="مشتق مرتبه اول $y = \sin^3(2x)$ در نقطه $x = \frac{\pi}{6}$ را به دست آورید."
-            />
-            <div className="mt-2 text-xs text-slate-500 bg-white p-2 rounded border border-slate-200">
-              <KaTeXRenderer
-                content="حل: $$y' = 3\sin^2(2x) \cdot (2\cos(2x)) = 6\sin^2\left(\frac{\pi}{3}\right)\cos\left(\frac{\pi}{3}\right) = \frac{9}{4}$$"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ماژول‌های ۱۰ گانه نقشه راه */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">معماری ۱۰ ماژول سامانه در برنامه ۱۰ روزه</h2>
-            <p className="text-xs text-slate-500">
-              تمام ۱۰ ماژول با موفقیت طبق زنجیره پیش‌نیازها و به صورت یکپارچه با پایگاه داده SQLite و Prisma مستقر شده‌اند.
-            </p>
-          </div>
-          <span className="text-xs bg-emerald-50 text-emerald-800 font-bold px-3 py-1.5 rounded-full border border-emerald-300 self-start sm:self-auto flex items-center gap-1.5 shadow-sm">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-            ۱۰ از ۱۰ ماژول مستقر شد (۱۰۰٪)
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {modules.map((m) => (
-            <Link
-              key={m.id}
-              href={m.href}
-              className={`bg-white p-5 rounded-2xl border transition-all flex flex-col justify-between group border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md ring-1 ring-slate-100 hover:ring-indigo-500/20`}
+          <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="#portals"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black rounded-2xl shadow-xl shadow-indigo-600/30 transition transform hover:-translate-y-0.5"
             >
-              <div className="space-y-3">
+              <span>انتخاب پرتال کاربری و ورود</span>
+              <ArrowLeft className="w-4 h-4" />
+            </a>
+
+            <Link
+              href="/demo"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/15 text-white border border-white/20 text-xs sm:text-sm font-bold rounded-2xl backdrop-blur-md transition"
+            >
+              <Play className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span>مشاهده سناریوی تور تعاملی (دمو)</span>
+            </Link>
+          </div>
+
+          {/* آمارهای کلیدی پلتفرم */}
+          <div className="pt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto text-center border-t border-white/10">
+            <div className="p-3">
+              <div className="text-xl sm:text-2xl font-black text-amber-300">۵ نقش</div>
+              <div className="text-xs text-slate-400 mt-1">پرتال کاملاً تفکیک‌شده</div>
+            </div>
+            <div className="p-3">
+              <div className="text-xl sm:text-2xl font-black text-emerald-400">۱۰۰٪</div>
+              <div className="text-xs text-slate-400 mt-1">سازگار با شبکه ملی و PWA</div>
+            </div>
+            <div className="p-3">
+              <div className="text-xl sm:text-2xl font-black text-cyan-300">هوشمند</div>
+              <div className="text-xs text-slate-400 mt-1">رادار تسلط و زنجیره پیش‌نیازها</div>
+            </div>
+            <div className="p-3">
+              <div className="text-xl sm:text-2xl font-black text-purple-300">رسمی</div>
+              <div className="text-xs text-slate-400 mt-1">منطبق با سیدا و آموزش و پرورش</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ۲. بخش پرتال‌های ورود کاربری (Portals Gateway) */}
+      <section id="portals" className="max-w-7xl mx-auto px-4 scroll-mt-20 space-y-8">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+            مسیرهای ورود به سامانه
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+            پرتال اختصاصی خود را انتخاب کنید
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600">
+            هر نقش به میز کار، ابزارها و گزارش‌های مختص خود دسترسی خواهد داشت:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {rolePortals.map((portal) => (
+            <div
+              key={portal.id}
+              className={`p-6 sm:p-7 rounded-3xl border bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${portal.color}`}
+            >
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:scale-110 transition-transform">
-                    {m.icon}
+                  <div className="p-3 bg-white rounded-2xl shadow-xs border border-slate-100">
+                    {portal.icon}
                   </div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${m.badgeColor}`}>
-                    {m.tag}
+                  <span className="text-xs font-bold text-slate-700 bg-white/80 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
+                    {portal.badge}
                   </span>
                 </div>
-                <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition">
-                  {m.title}
-                </h3>
-                <p className="text-xs text-slate-600 leading-relaxed">{m.desc}</p>
+
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">{portal.title}</h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">{portal.tagline}</p>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  {portal.points.map((pt, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs text-slate-700">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{pt}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-indigo-600">
-                <span>{m.status}</span>
-                <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" />
+              <div className="pt-6">
+                <Link
+                  href={portal.href}
+                  className={`w-full py-3 rounded-2xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition shadow-sm ${portal.btnColor}`}
+                >
+                  <span>ورود به {portal.title}</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </Link>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       </section>
+
+      {/* ۳. بخش ویژگی‌های کلیدی سامانه (Features Section) */}
+      <section id="features" className="max-w-7xl mx-auto px-4 scroll-mt-20 space-y-8 pt-4">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+            امکانات و نوآوری‌ها
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+            چرا دبیرستان‌های برتر داناتک را انتخاب می‌کنند؟
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600">
+            ابزارهایی که کار یادگیری را برای دانش‌آموز لذت‌بخش و مدیریت کلاس را برای دبیر تسهیل می‌کنند.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {highlights.map((h, i) => (
+            <div
+              key={i}
+              className="p-6 rounded-3xl bg-white border border-slate-200 hover:border-indigo-300 shadow-xs hover:shadow-md transition space-y-3"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center">
+                {h.icon}
+              </div>
+              <h3 className="text-sm font-black text-slate-900">{h.title}</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">{h.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ۴. بخش درباره سامانه و زیرساخت بومی (About Section) */}
+      <section id="about" className="max-w-7xl mx-auto px-4 scroll-mt-20">
+        <div className="bg-slate-900 rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden shadow-xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="space-y-4 max-w-2xl text-center md:text-right">
+            <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full font-bold inline-block">
+              زیرساخت مستقل و پایدار
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black">
+              سامانه ۱۰۰٪ بومی با پشتیبانی کامل از حالت آفلاین و PWA
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              کلیه اسکریپت‌ها، فونت‌های فارسی و فرمول‌نویس ریاضی بدون وابستگی به سرورهای خارجی میزبانی می‌شوند و سامانه با حداکثر سرعت و پایداری در بستر شبکه ملی مدارس و اینترنت در دسترس است.
+            </p>
+          </div>
+
+          <div className="shrink-0 flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/demo"
+              className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>مشاهده دموی تعاملی</span>
+            </Link>
+            <Link
+              href="/login"
+              className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition"
+            >
+              <span>ورود به حساب کاربری</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ۵. پاورقی تمیز و استاندارد (Footer) */}
+      <footer className="max-w-7xl mx-auto px-4 pt-12 border-t border-slate-200 text-slate-500 text-xs flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-right">
+        <div>
+          <span className="font-bold text-slate-800">سامانه هوشمند داناتک</span> • کلیه حقوق محفوظ است (سال تحصیلی ۱۴۰۳-۱۴۰۴)
+        </div>
+        <div className="flex items-center gap-4 text-slate-600 font-medium">
+          <a href="#about" className="hover:text-indigo-600 transition">درباره سامانه</a>
+          <a href="#features" className="hover:text-indigo-600 transition">امکانات</a>
+          <a href="#portals" className="hover:text-indigo-600 transition">پرتال‌ها</a>
+          <Link href="/login" className="hover:text-indigo-600 transition font-bold text-indigo-600">ورود اعضا</Link>
+        </div>
+      </footer>
     </div>
   );
 }

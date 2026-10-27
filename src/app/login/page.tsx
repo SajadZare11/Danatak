@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRole } from "@/context/RoleContext";
 import {
   Lock,
@@ -19,8 +19,10 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetRoleParam = searchParams.get("role")?.toUpperCase();
   const { login } = useRole();
 
   const [nationalId, setNationalId] = useState("");
@@ -31,6 +33,15 @@ export default function LoginPage() {
 
   const demoAccounts = [
     {
+      role: "STUDENT",
+      name: "علی رضایی",
+      title: "دانش‌آموز پایه دوازدهم ریاضی",
+      nationalId: "0022334455",
+      password: "demo1234",
+      icon: <GraduationCap className="w-4 h-4 text-emerald-400" />,
+      color: "from-emerald-600 to-teal-700",
+    },
+    {
       role: "TEACHER",
       name: "استاد احسان محمدی",
       title: "دبیر تخصصی ریاضی و حسابان",
@@ -40,13 +51,13 @@ export default function LoginPage() {
       color: "from-blue-600 to-indigo-700",
     },
     {
-      role: "STUDENT",
-      name: "علی رضایی",
-      title: "دانش‌آموز پایه دوازدهم ریاضی",
-      nationalId: "0022334455",
+      role: "PARENT",
+      name: "مهندس حسین رضایی",
+      title: "ولی دانش‌آموز (پدر علی)",
+      nationalId: "0077665544",
       password: "demo1234",
-      icon: <GraduationCap className="w-4 h-4 text-emerald-400" />,
-      color: "from-emerald-600 to-teal-700",
+      icon: <Users className="w-4 h-4 text-rose-400" />,
+      color: "from-rose-600 to-pink-700",
     },
     {
       role: "PRINCIPAL",
@@ -66,16 +77,18 @@ export default function LoginPage() {
       icon: <Compass className="w-4 h-4 text-amber-400" />,
       color: "from-amber-600 to-orange-700",
     },
-    {
-      role: "PARENT",
-      name: "مهندس حسین رضایی",
-      title: "ولی دانش‌آموز (پدر علی)",
-      nationalId: "0077665544",
-      password: "demo1234",
-      icon: <Users className="w-4 h-4 text-rose-400" />,
-      color: "from-rose-600 to-pink-700",
-    },
   ];
+
+  // اگر پارامتر role در آدرس باشد، اکانت مربوطه را پیش‌فرض انتخاب و پر می‌کند
+  useEffect(() => {
+    if (targetRoleParam) {
+      const match = demoAccounts.find((a) => a.role === targetRoleParam);
+      if (match) {
+        setNationalId(match.nationalId);
+        setPassword(match.password);
+      }
+    }
+  }, [targetRoleParam]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -105,7 +118,6 @@ export default function LoginPage() {
     setNationalId(account.nationalId);
     setPassword(account.password);
     setErrorMessage("");
-    // اجرای فوری ورود
     login(account.nationalId, account.password).then((res) => {
       if (res.success) {
         router.push(res.targetRoute || "/");
@@ -114,110 +126,115 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-10 px-4">
-      <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        {/* ستون راست: فرم ورود رسمی */}
-        <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6">
-          <div className="space-y-2 text-center sm:text-right">
-            <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1 rounded-full font-bold">
-              <Shield className="w-3.5 h-3.5 text-indigo-600" />
-              درگاه امن ورود یکپارچه اعضای دبیرستان
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              ورود به سامانه هوشمند داناتک
-            </h1>
-            <p className="text-xs text-slate-500">
-              دبیرستان علامه حلی ۱ (سمپاد) • سال تحصیلی ۱۴۰۳-۱۴۰۴
-            </p>
+    <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      {/* ستون راست: فرم ورود رسمی */}
+      <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6">
+        <div className="space-y-2 text-center sm:text-right">
+          <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1 rounded-full font-bold">
+            <Shield className="w-3.5 h-3.5 text-indigo-600" />
+            درگاه امن ورود یکپارچه اعضای مدرسه
           </div>
-
-          {errorMessage && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                کد ملی (۱۰ رقم بدون خط تیره):
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  maxLength={10}
-                  placeholder="مثال: 0011223344"
-                  value={nationalId}
-                  onChange={(e) => setNationalId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                رمز عبور حساب کاربری:
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="رمز عبور خود را وارد کنید"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-4 pl-10 py-3 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  ورود به پنل کاربری
-                  <ArrowLeft className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            ورود به سامانه هوشمند داناتک
+          </h1>
+          <p className="text-xs text-slate-500">
+            دبیرستان علامه حلی ۱ (سمپاد) • سال تحصیلی ۱۴۰۳-۱۴۰۴
+          </p>
         </div>
 
-        {/* ستون چپ: راهنمای حساب‌های دمو و ورود با یک کلیک */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
-            <div className="flex items-center gap-2 text-amber-400">
-              <Sparkles className="w-4 h-4" />
-              <h3 className="text-xs font-black">حساب‌های آزمایشی آماده (ورود سریع)</h3>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              برای بررسی سریع عملکرد هر یک از ۵ نقش، روی حساب مورد نظر کلیک کنید تا فرم به صورت خودکار پر و احراز هویت شود:
-            </p>
+        {errorMessage && (
+          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
-            <div className="space-y-2 pt-1">
-              {demoAccounts.map((acc) => (
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">
+              کد ملی (۱۰ رقم بدون خط تیره):
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                maxLength={10}
+                placeholder="مثال: 0011223344"
+                value={nationalId}
+                onChange={(e) => setNationalId(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">
+              رمز عبور حساب کاربری:
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                placeholder="رمز عبور خود را وارد کنید"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-4 pl-10 py-3 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                ورود به پنل کاربری
+                <ArrowLeft className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+
+      {/* ستون چپ: راهنمای حساب‌های دمو و ورود با یک کلیک */}
+      <div className="lg:col-span-5 space-y-4">
+        <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+          <div className="flex items-center gap-2 text-amber-400">
+            <Sparkles className="w-4 h-4" />
+            <h3 className="text-xs font-black">حساب‌های آزمایشی آماده (ورود سریع با ۱ کلیک)</h3>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            جهت تست و بررسی قابلیت‌های هر نقش، روی کارت مربوطه کلیک کنید تا بلافاصله وارد شوید:
+          </p>
+
+          <div className="space-y-2 pt-1">
+            {demoAccounts.map((acc) => {
+              const isSelected = targetRoleParam === acc.role;
+              return (
                 <button
                   key={acc.role}
                   type="button"
                   onClick={() => handleQuickLogin(acc)}
-                  className="w-full text-right p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-400/50 transition flex items-center justify-between group"
+                  className={`w-full text-right p-3 rounded-2xl border transition flex items-center justify-between group ${
+                    isSelected
+                      ? "bg-indigo-600/30 border-indigo-400 text-white shadow-md ring-2 ring-indigo-500/30"
+                      : "bg-white/5 hover:bg-white/10 border-white/10 hover:border-indigo-400/50"
+                  }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${acc.color} flex items-center justify-center text-white shrink-0`}>
+                    <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${acc.color} flex items-center justify-center text-white shrink-0 shadow-sm`}>
                       {acc.icon}
                     </div>
                     <div>
@@ -235,15 +252,25 @@ export default function LoginPage() {
                     </span>
                   </div>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800 text-center">
-              رمز عبور کلیه حساب‌های آزمایشی: <span className="font-mono text-slate-400 font-bold">demo1234</span>
-            </div>
+          <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800 text-center">
+            رمز عبور کلیه حساب‌های آزمایشی: <span className="font-mono text-slate-400 font-bold">demo1234</span>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <div className="min-h-[85vh] flex items-center justify-center py-10 px-4">
+      <Suspense fallback={<div className="text-xs text-slate-400">در حال بارگذاری صفحه ورود...</div>}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

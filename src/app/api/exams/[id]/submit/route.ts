@@ -36,52 +36,172 @@ export async function POST(
     }
 
     let questionIds: string[] = [];
+    let antiCheatSettings: any = null;
     try {
-      questionIds = JSON.parse(exam.questionsJson);
+      const parsed = JSON.parse(exam.questionsJson);
+      if (Array.isArray(parsed)) {
+        questionIds = parsed;
+      } else if (parsed && typeof parsed === "object") {
+        questionIds = parsed.questionIds || [];
+        antiCheatSettings = parsed.antiCheatSettings || null;
+      }
     } catch {
       questionIds = [];
     }
+
+    const isNegativeMarking = antiCheatSettings ? antiCheatSettings.negativeMarking !== false : true;
 
     const questions = await prisma.question.findMany({
       where: { id: { in: questionIds } },
       include: { options: true, topic: true },
     });
 
+    // تابع نرمال‌سازی متن برای مقایسه هوشمند سوالات جای‌خالی
+    const normalizeAnswer = (str: string) => {
+      if (!str) return "";
+      return str
+        .trim()
+        .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+        .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+        .replace(/ي/g, "ی")
+        .replace(/ك/g, "ک")
+        .replace(/[\.\,\،\-\_\:\;\(\)]/g, "")
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+    };
+
     let correctCount = 0;
     let wrongCount = 0;
     let unansweredCount = 0;
+    let pendingDescriptiveCount = 0;
 
-    // بررسی گزینه‌ها و تصحیح خودکار
+    const questionResults: Record<string, any> = {};
+
     questions.forEach((q) => {
       const chosen = answers[q.id];
-      if (!chosen) {
-        unansweredCount++;
+      const isBlank = !chosen || (typeof chosen === "string" && chosen.trim() === "");
+
+      if (q.type === "DESCRIPTIVE") {
+        if (!isBlank) {
+          pendingDescriptiveCount++;
+          questionResults[q.id] = {
+            type: "DESCRIPTIVE",
+            studentAnswer: chosen,
+            status: "PENDING_TEACHER_REVIEW",
+            explanation: q.explanation || "",
+          };
+        } else {
+          unansweredCount++;
+          questionResults[q.id] = {
+            type: "DESCRIPTIVE",
+            studentAnswer: "",
+            status: "UNANSWERED",
+            explanation: q.explanation || "",
+          };
+        }
         return;
       }
 
-      const correctOpt = q.options.find((o) => o.isCorrect);
-      if (correctOpt) {
-        if (chosen === correctOpt.id || chosen === String(correctOpt.orderIndex)) {
+      if (isBlank) {
+        unansweredCount++;
+        questionResults[q.id] = {
+          type: q.type,
+          studentAnswer: "",
+          isCorrect: false,
+          status: "UNANSWERED",
+        };
+        return;
+      }
+
+      if (q.type === "FILL_BLANK") {
+        const correctOpt = q.options.find((o) => o.isCorrect);
+        const expected = correctOpt?.optionText || q.explanation || "";
+        const normChosen = normalizeAnswer(String(chosen));
+        const normExpected = normalizeAnswer(expected);
+
+        const isMatch = normChosen !== "" && (normChosen === normExpected || normExpected.includes(normChosen));
+        if (isMatch) {
           correctCount++;
+          questionResults[q.id] = {
+            type: "FILL_BLANK",
+            studentAnswer: chosen,
+            expectedAnswer: expected,
+            isCorrect: true,
+            status: "CORRECT",
+            explanation: q.explanation || "",
+          };
         } else {
           wrongCount++;
+          questionResults[q.id] = {
+            type: "FILL_BLANK",
+            studentAnswer: chosen,
+            expectedAnswer: expected,
+            isCorrect: false,
+            status: "WRONG",
+            explanation: q.explanation || "",
+          };
         }
+        return;
+      }
+
+      // MULTIPLE_CHOICE و TRUE_FALSE
+      const correctOpt = q.options.find((o) => o.isCorrect);
+      let isCorrect = false;
+
+      if (correctOpt) {
+        if (chosen === correctOpt.id || chosen === String(correctOpt.orderIndex)) {
+          isCorrect = true;
+        } else if (
+          q.type === "TRUE_FALSE" &&
+          (chosen === correctOpt.optionText ||
+            (chosen === "true" && correctOpt.orderIndex === 1) ||
+            (chosen === "false" && correctOpt.orderIndex === 2))
+        ) {
+          isCorrect = true;
+        }
+      }
+
+      if (isCorrect) {
+        correctCount++;
+        questionResults[q.id] = {
+          type: q.type,
+          studentAnswer: chosen,
+          correctOptionId: correctOpt?.id,
+          isCorrect: true,
+          status: "CORRECT",
+          explanation: q.explanation || "",
+        };
+      } else {
+        wrongCount++;
+        questionResults[q.id] = {
+          type: q.type,
+          studentAnswer: chosen,
+          correctOptionId: correctOpt?.id,
+          isCorrect: false,
+          status: "WRONG",
+          explanation: q.explanation || "",
+        };
       }
     });
 
-    const totalQuestions = questions.length || 1;
+    const autoGradableQuestions = questions.filter((q) => q.type !== "DESCRIPTIVE");
+    const autoGradableCount = autoGradableQuestions.length || 1;
 
-    // فرمول درصد کنکور با احتساب نمره منفی ۱/۳: ((۳ * درست - غلط) / (۳ * کل)) * ۱۰۰
-    const rawPercentage =
-      totalQuestions > 0
-        ? ((3 * correctCount - wrongCount) / (3 * totalQuestions)) * 100
-        : 0;
-    const percentage = Number(rawPercentage.toFixed(2));
+    let percentage = 0;
+    if (autoGradableQuestions.length > 0) {
+      if (isNegativeMarking) {
+        const raw = ((3 * correctCount - wrongCount) / (3 * autoGradableCount)) * 100;
+        percentage = Number(Math.max(0, Math.min(100, raw)).toFixed(2));
+      } else {
+        const raw = (correctCount / autoGradableCount) * 100;
+        percentage = Number(Math.max(0, Math.min(100, raw)).toFixed(2));
+      }
+    }
 
-    // نمره از ۲۰
-    const scoreFrom20 = Number(Math.max(0, (percentage * 0.2)).toFixed(2));
+    // نمره از ۲۰ برای بخش تستی و خودکار
+    const scoreFrom20 = Number(Math.max(0, percentage * 0.2).toFixed(2));
 
-    // محاسبه تراز استاندارد کنکوری (میانگین ۵۰۰۰، انحراف معیار ۱۰۰۰)
+    // محاسبه تراز استاندارد کنکوری
     const taraz = Math.max(3000, Math.min(8500, Math.round(5000 + (percentage - 50) * 45)));
 
     // ثبت کارنامه در دیتابیس
@@ -111,15 +231,16 @@ export async function POST(
       },
     });
 
-    // انتقال خودکار سوالات غلط یا نزده به دفترچه اشتباهات هوشمند
+    // انتقال خودکار سوالات غلط تستی/جای‌خالی به دفترچه اشتباهات هوشمند (به جز تشریحی‌های در انتظار تصحیح)
     let mistakesLogged = 0;
     for (const q of questions) {
-      const chosen = answers[q.id];
-      const correctOpt = q.options.find((o) => o.isCorrect);
-      const isCorrect =
-        chosen && correctOpt && (chosen === correctOpt.id || chosen === String(correctOpt.orderIndex));
+      if (q.type === "DESCRIPTIVE") continue; // سوالات تشریحی نیاز به بازبینی دبیر دارند
+
+      const qResult = questionResults[q.id];
+      const isCorrect = qResult?.isCorrect === true;
 
       if (!isCorrect) {
+        const chosen = answers[q.id];
         await prisma.studentMistake.upsert({
           where: {
             studentId_questionId: {
@@ -195,9 +316,14 @@ export async function POST(
       correctCount,
       wrongCount,
       unansweredCount,
+      pendingDescriptiveCount,
+      hasDescriptive: pendingDescriptiveCount > 0,
+      questionResults,
       awardedXP: 50,
       mistakesLogged,
-      message: `آزمون با موفقیت پایان یافت. تراز شما: ${taraz} (درصد: ${percentage}٪). ${mistakesLogged} سوال جهت مرور به دفترچه اشتباهات اضافه شد.`,
+      message: pendingDescriptiveCount > 0
+        ? `آزمون پایان یافت. سوالات تستی و محاسباتی با تراز ${taraz} تصحیح شدند. ${pendingDescriptiveCount} سوال تشریحی به کارتابل دبیر محترم ارسال گردید.`
+        : `آزمون با موفقیت پایان یافت. تراز شما: ${taraz} (درصد: ${percentage}٪). ${mistakesLogged} سوال جهت مرور به دفترچه اشتباهات اضافه شد.`,
     });
   } catch (error) {
     console.error("Exam Submit POST error:", error);
