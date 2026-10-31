@@ -118,6 +118,10 @@ export async function POST(req: Request) {
       shuffleOptions: false,
       isSequential: !!isSequential,
       negativeMarking: true,
+      enableWebcamProctoring: true,
+      enableAudioMonitoring: true,
+      detectDualScreen: true,
+      blockConcurrentLogin: true,
     };
 
     const exam = await prisma.exam.create({

@@ -13,6 +13,7 @@ export async function POST(
       answers,
       tabSwitchCount = 0,
       warningLogs = [],
+      sessionId,
     } = body;
 
     let studentId = studentIdParam;
@@ -305,6 +306,14 @@ export async function POST(
           },
         });
       }
+    }
+
+    // پاکسازی نشست فعال آزمون در صورت وجود
+    const globalSessions = globalThis as unknown as {
+      _examActiveSessions?: Map<string, any>;
+    };
+    if (globalSessions._examActiveSessions) {
+      globalSessions._examActiveSessions.delete(`${examId}:${studentId}`);
     }
 
     return NextResponse.json({

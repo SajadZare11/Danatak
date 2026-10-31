@@ -33,7 +33,12 @@ export async function GET(
 
     let questionIds: string[] = [];
     try {
-      questionIds = JSON.parse(exam.questionsJson);
+      const parsed = JSON.parse(exam.questionsJson);
+      if (Array.isArray(parsed)) {
+        questionIds = parsed;
+      } else if (parsed && typeof parsed === "object") {
+        questionIds = parsed.questionIds || [];
+      }
     } catch {
       questionIds = [];
     }

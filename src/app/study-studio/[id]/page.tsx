@@ -147,6 +147,15 @@ export default function StudyPackPlayerPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* لینک به موتور یادگیری تطبیقی نسل جدید */}
+          <Link
+            href={`/study-studio/${id}/adaptive`}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-slate-950 rounded-xl text-xs font-black shadow-md hover:shadow-lg transition transform hover:-translate-y-0.5 border border-amber-300"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>موتور یادگیری تطبیقی و Boss Fight ⚡</span>
+          </Link>
+
           {/* دکمه چاپ کاربرگ و PDF آزمون */}
           <button
             type="button"
@@ -245,8 +254,16 @@ export default function StudyPackPlayerPage() {
         focusRatio={focusRatio}
       />
 
-      {/* تب‌های ۴ گانه استودیو */}
+      {/* تب‌های استودیو */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+        <Link
+          href={`/study-studio/${id}/adaptive`}
+          className="flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-rose-500/20 text-rose-800 border border-rose-300 hover:bg-rose-50 shadow-xs"
+        >
+          <Sparkles className="w-4 h-4 text-amber-600" />
+          <span>نقشه مراحل تطبیقی و Boss Fight (🔥 FSRS)</span>
+        </Link>
+
         <button
           type="button"
           onClick={() => setActiveTab("flashcards")}

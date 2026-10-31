@@ -70,6 +70,10 @@ export async function GET(
         shuffleOptions: false,
         isSequential: exam.isSequential,
         negativeMarking: true,
+        enableWebcamProctoring: exam.enableAntiCheat,
+        enableAudioMonitoring: exam.enableAntiCheat,
+        detectDualScreen: exam.enableAntiCheat,
+        blockConcurrentLogin: true,
       };
     }
 

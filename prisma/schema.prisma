@@ -45,6 +45,8 @@ model User {
   studyTelemetryLogs            StudyTelemetryLog[]     @relation("StudentTelemetryLogs")
   teacherStudyPackAssignments   StudyPackAssignment[]   @relation("TeacherStudyPackAssignments")
   studentStudyPackAssignments   StudyPackAssignment[]   @relation("StudentStudyPackAssignments")
+  nodeProgresses                StudentLearningNodeProgress[] @relation("StudentNodeProgresses")
+  fsrsProgresses                StudentFSRSProgress[]         @relation("StudentFSRSProgresses")
   sentChannelMessages           ChannelMessage[]
 
   // سامانه کلاس آنلاین تصویری، وبینار و تخته‌سیاه تعاملی (Live Virtual Classroom)
@@ -449,12 +451,19 @@ model StudyPack {
   subjectId     String?
   subject       Subject?              @relation(fields: [subjectId], references: [id])
   isPublic      Boolean               @default(true) // عمومی در استودیو یا شخصی
+  contentHash   String?               // کد هش SHA-256 جهت کشینگ هوشمند و پاسخ فوری زیر ۱ ثانیه
+  nodesJson     String?               // نودهای یادگیری ساختاریافته، باس‌فایت و سوالات ۶ گانه بلوم
+  ocrUsed       Boolean               @default(false) // آیا استخراج از طریق OCR و مدل بینایی انجام شده؟
   flashcards    StudyFlashcard[]
   quizzes       StudyQuiz[]
   assignments   StudyPackAssignment[]
   telemetryLogs StudyTelemetryLog[]
+  nodeProgresses StudentLearningNodeProgress[]
+  fsrsProgresses StudentFSRSProgress[]
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
+
+  @@index([contentHash])
 }
 
 model StudyFlashcard {
@@ -566,6 +575,53 @@ model StudyPackAssignment {
   minMasteryScore Float      @default(80.0) // حداقل نمره تسلط الزامی (مثلاً ۸۰٪)
   instructions    String?
   createdAt       DateTime   @default(now())
+}
+
+// وضعیت پیشرفت گیمیفای‌شده دانش‌آموز در نودهای یادگیری (Micro-Learning Nodes & Boss Fights)
+model StudentLearningNodeProgress {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       User      @relation("StudentNodeProgresses", fields: [studentId], references: [id], onDelete: Cascade)
+  studyPackId   String
+  studyPack     StudyPack @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  nodeId        String    // شناسه نود (مانند node-1, node-2, boss-fight)
+  isCompleted   Boolean   @default(false)
+  isUnlocked    Boolean   @default(false)
+  bestScore     Float     @default(0)   // بالاترین درصد نمره کسب شده
+  starsEarned   Int       @default(0)   // ستاره‌ها: ۱، ۲ یا ۳ ستاره
+  heartsLeft    Int       @default(3)   // جان‌های باقی‌مانده
+  streakCount   Int       @default(0)   // تسلسل پاسخ‌های درست
+  attemptsCount Int       @default(0)
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([studentId, studyPackId, nodeId])
+  @@index([studentId, studyPackId])
+}
+
+// الگوریتم نسل جدید مرور با فاصله FSRS (Free Spaced Repetition Scheduler)
+model StudentFSRSProgress {
+  id             String    @id @default(cuid())
+  studentId      String
+  student        User      @relation("StudentFSRSProgresses", fields: [studentId], references: [id], onDelete: Cascade)
+  studyPackId    String
+  studyPack      StudyPack @relation(fields: [studyPackId], references: [id], onDelete: Cascade)
+  itemId         String    // شناسه سوال یا مفهوم
+  conceptKey     String    // کلیدواژه یا مفهوم مرتبط
+  stability      Float     @default(1.0)  // S: پایداری در حافظه به روز
+  difficulty     Float     @default(5.0)  // D: ضریب دشواری از ۱ تا ۱۰
+  reps           Int       @default(0)    // تکرارهای متوالی موفق
+  lapses         Int       @default(0)    // دفعات فراموشی
+  state          String    @default("NEW") // NEW, LEARNING, REVIEW, RELEARNING
+  lastReviewedAt DateTime?
+  nextReviewDate DateTime  @default(now()) // سررسید مرور هدف‌گذاری شده روی ۹۰٪ احتمال یادآوری
+  lastRating     Int?      // ۱: دوباره، ۲: سخت، ۳: خوب، ۴: آسان
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([studentId, itemId])
+  @@index([studentId, nextReviewDate])
 }
 
 // ==========================================

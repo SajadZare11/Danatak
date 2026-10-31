@@ -20,6 +20,9 @@ import {
   BarChart3,
   Video,
   ChevronLeft,
+  Swords,
+  TrendingDown,
+  Plus,
 } from "lucide-react";
 import { InteractivePracticeLoop } from "@/components/student/InteractivePracticeLoop";
 import { StudentAssignmentView, AssignmentDetail, QuestionDetail } from "@/components/student/StudentAssignmentView";
@@ -29,6 +32,8 @@ import { StudyPlannerTab } from "@/components/student/StudyPlannerTab";
 import { OfficialReportCardModal } from "@/components/report-card/OfficialReportCardModal";
 import { LiveClassAlertBanner } from "@/components/live/LiveClassAlertBanner";
 import { CollapsibleDashboardCard } from "@/components/common/CollapsibleDashboardCard";
+import { DailyFSRSReviewDeckModal } from "@/components/adaptive/DailyFSRSReviewDeckModal";
+import { AdaptiveIngestUploadModal } from "@/components/adaptive/AdaptiveIngestUploadModal";
 
 interface StudentDashboardData {
   student: {
@@ -125,6 +130,11 @@ export default function StudentPage() {
   const [exams, setExams] = useState<any[]>([]);
   const [studyPackAssignments, setStudyPackAssignments] = useState<any[]>([]);
 
+  // وضعیت موتور یادگیری تطبیقی و FSRS
+  const [isFSRSDeckOpen, setIsFSRSDeckOpen] = useState(false);
+  const [isAdaptiveUploadOpen, setIsAdaptiveUploadOpen] = useState(false);
+  const [adaptiveDueCount, setAdaptiveDueCount] = useState(0);
+
   const fetchDashboard = async () => {
     try {
       const res = await fetch("/api/student/dashboard");
@@ -140,6 +150,17 @@ export default function StudentPage() {
         const spaData = await spaRes.json();
         if (spaData.success && spaData.assignments) {
           setStudyPackAssignments(spaData.assignments);
+        }
+
+        // بررسی سررسید مرورهای FSRS
+        try {
+          const fsrsRes = await fetch(`/api/adaptive/fsrs?studentId=${d.student.id}`);
+          const fsrsData = await fsrsRes.json();
+          if (fsrsData.success && fsrsData.analysis) {
+            setAdaptiveDueCount(fsrsData.analysis.dueCount || 0);
+          }
+        } catch (e) {
+          console.warn("Could not fetch FSRS due count", e);
         }
       }
 
@@ -293,6 +314,87 @@ export default function StudentPage() {
               ۴ بخش اصلی میز کار
             </span>
           </div>
+
+          {/* ===================================================================== */}
+          {/* بنر ویژه موتور یادگیری تطبیقی و هوشمند دانش‌آموز (Adaptive Learning Engine) */}
+          {/* ===================================================================== */}
+          <section className="bg-gradient-to-l from-slate-950 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-7 text-white border border-indigo-700/60 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="space-y-3 max-w-2xl">
+                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-rose-500/20 text-amber-300 border border-amber-400/30 text-xs px-3.5 py-1 rounded-full font-bold">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  موتور یادگیری تطبیقی بر پایه علوم شناختی و الگوریتم FSRS
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                  <span>نقشه مراحل ۵ دقیقه‌ای، چالش Boss Fight و ۶ قالب بلوم</span>
+                  <span className="text-xs bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-lg hidden sm:inline-block">
+                    PRO
+                  </span>
+                </h2>
+
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                  جایگزین ابزارهای سنتی؛ تبدیل جزوه به مراحل گیمیفای‌شده با جان (قلب)، استریک، شکار خطا، اتاق فاینمن، ارجاع مستقیم به صفحه جزوه و الگوریتم ریاضی تکرار فاصله‌دار FSRS.
+                </p>
+
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <Link
+                    href="/student/adaptive"
+                    className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center gap-2 border border-amber-300"
+                  >
+                    <Swords className="w-4 h-4 text-slate-950" />
+                    <span>ورود به نقشه مراحل و نبرد غول (Boss Fight) ⚔️</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsFSRSDeckOpen(true)}
+                    className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-2xl border border-white/20 transition flex items-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4 text-indigo-300" />
+                    <span>مرورهای امروز FSRS</span>
+                    {adaptiveDueCount > 0 && (
+                      <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">
+                        {adaptiveDueCount} کارت
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAdaptiveUploadOpen(true)}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl border border-indigo-400 transition flex items-center gap-2 shadow-sm"
+                  >
+                    <Plus className="w-4 h-4 text-amber-300" />
+                    <span>آپلود جزوه با کشینگ SHA-256 (⚡)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* کارت آماری سریع در سمت چپ */}
+              <div className="bg-white/5 backdrop-blur-md p-4 rounded-3xl border border-white/10 text-xs text-slate-200 space-y-3 w-full lg:w-64 shrink-0">
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <span className="text-slate-400">فرمت‌های بلوم:</span>
+                  <span className="font-bold text-amber-300">۶ مدل تعاملی</span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <span className="text-slate-400">کشینگ هوشمند:</span>
+                  <span className="font-mono text-emerald-400 font-bold">SHA-256 (۰$)</span>
+                </div>
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <span className="text-slate-400">پایش خط جزوه:</span>
+                  <span className="font-bold text-cyan-300">Grounded Loop</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">سررسید مرور:</span>
+                  <span className="font-bold text-rose-300 font-mono">
+                    {adaptiveDueCount > 0 ? `${adaptiveDueCount} مفهوم آماده` : "به‌روز و تکمیل"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* ===================================================================== */}
           {/* ساختار ۴ کارتی کشویی داشبورد دانش‌آموز (تماماً بسته در بدو ورود) */}
@@ -691,6 +793,25 @@ export default function StudentPage() {
             isOpen={isReportCardOpen}
             onClose={() => setIsReportCardOpen(false)}
             studentId={student?.id}
+          />
+
+          {/* مدال مرورهای روزانه FSRS */}
+          <DailyFSRSReviewDeckModal
+            isOpen={isFSRSDeckOpen}
+            studentId={student?.id || ""}
+            onClose={() => setIsFSRSDeckOpen(false)}
+            onCardReviewed={() => fetchDashboard()}
+          />
+
+          {/* مدال آپلود و پردازش چندوجهی جزوه با کشینگ SHA-256 */}
+          <AdaptiveIngestUploadModal
+            isOpen={isAdaptiveUploadOpen}
+            studentId={student?.id || ""}
+            creatorId={student?.id || ""}
+            onClose={() => setIsAdaptiveUploadOpen(false)}
+            onSuccess={() => {
+              fetchDashboard();
+            }}
           />
         </>
       )}

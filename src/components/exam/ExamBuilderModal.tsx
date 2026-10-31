@@ -22,6 +22,10 @@ import {
   CheckSquare,
   PenTool,
   RotateCcw,
+  Camera,
+  Mic,
+  Monitor,
+  Users,
 } from "lucide-react";
 import { KaTeXRenderer } from "@/components/common/KaTeXRenderer";
 
@@ -67,6 +71,10 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
   const [shuffleOptions, setShuffleOptions] = useState(false);
   const [isSequential, setIsSequential] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(true);
+  const [enableWebcamProctoring, setEnableWebcamProctoring] = useState(true);
+  const [enableAudioMonitoring, setEnableAudioMonitoring] = useState(true);
+  const [detectDualScreen, setDetectDualScreen] = useState(true);
+  const [blockConcurrentLogin, setBlockConcurrentLogin] = useState(true);
 
   // سوالات انتخابی از بانک
   const [availableQuestions, setAvailableQuestions] = useState<any[]>([]);
@@ -138,6 +146,10 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
       setShuffleOptions(true);
       setIsSequential(true);
       setNegativeMarking(true);
+      setEnableWebcamProctoring(true);
+      setEnableAudioMonitoring(true);
+      setDetectDualScreen(true);
+      setBlockConcurrentLogin(true);
     } else if (preset === "standard") {
       setEnableFullscreen(true);
       setDetectTabSwitch(true);
@@ -148,6 +160,10 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
       setShuffleOptions(false);
       setIsSequential(false);
       setNegativeMarking(true);
+      setEnableWebcamProctoring(true);
+      setEnableAudioMonitoring(true);
+      setDetectDualScreen(true);
+      setBlockConcurrentLogin(true);
     } else {
       setEnableFullscreen(false);
       setDetectTabSwitch(false);
@@ -158,6 +174,10 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
       setShuffleOptions(false);
       setIsSequential(false);
       setNegativeMarking(false);
+      setEnableWebcamProctoring(false);
+      setEnableAudioMonitoring(false);
+      setDetectDualScreen(false);
+      setBlockConcurrentLogin(false);
     }
   };
 
@@ -180,6 +200,10 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
         shuffleOptions,
         isSequential,
         negativeMarking,
+        enableWebcamProctoring,
+        enableAudioMonitoring,
+        detectDualScreen,
+        blockConcurrentLogin,
       };
 
       const res = await fetch("/api/exams", {
@@ -587,6 +611,106 @@ export const ExamBuilderModal: React.FC<ExamBuilderModalProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">
                     کسر یک‌سوم نمره به ازای هر پاسخ نادرست در تستی‌ها و محاسبه تراز سنجش
+                  </span>
+                </div>
+              </label>
+
+              {/* ۹. پایش وب‌کم با هوش مصنوعی */}
+              <label
+                className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-start gap-2.5 ${
+                  enableWebcamProctoring
+                    ? "bg-rose-50/70 border-rose-200 ring-1 ring-rose-200"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={enableWebcamProctoring}
+                  onChange={(e) => setEnableWebcamProctoring(e.target.checked)}
+                  className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block flex items-center gap-1">
+                    <Camera className="w-3.5 h-3.5 text-rose-600" />
+                    پایش هوش مصنوعی وب‌کم
+                  </span>
+                  <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">
+                    تشخیص عدم حضور چهره، انحراف ممتد زاویه نگاه و تشخیص حضور فرد دوم
+                  </span>
+                </div>
+              </label>
+
+              {/* ۱۰. پایش صوتی میکروفون */}
+              <label
+                className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-start gap-2.5 ${
+                  enableAudioMonitoring
+                    ? "bg-rose-50/70 border-rose-200 ring-1 ring-rose-200"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={enableAudioMonitoring}
+                  onChange={(e) => setEnableAudioMonitoring(e.target.checked)}
+                  className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block flex items-center gap-1">
+                    <Mic className="w-3.5 h-3.5 text-rose-600" />
+                    پایش میکروفون و نویز صوتی
+                  </span>
+                  <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">
+                    سنجش بلندی صدای محیط و ثبت اخطار در صورت صحبت یا همیاری کلامی
+                  </span>
+                </div>
+              </label>
+
+              {/* ۱۱. تشخیص مانیتور دوم */}
+              <label
+                className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-start gap-2.5 ${
+                  detectDualScreen
+                    ? "bg-rose-50/70 border-rose-200 ring-1 ring-rose-200"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={detectDualScreen}
+                  onChange={(e) => setDetectDualScreen(e.target.checked)}
+                  className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block flex items-center gap-1">
+                    <Monitor className="w-3.5 h-3.5 text-rose-600" />
+                    شناسایی مانیتور دوم (Dual-Screen)
+                  </span>
+                  <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">
+                    جلوگیری از اتصال کابل HDMI یا نمایشگر اکستندد در حین آزمون
+                  </span>
+                </div>
+              </label>
+
+              {/* ۱۲. تطبیق IP و نشست همزمان */}
+              <label
+                className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-start gap-2.5 ${
+                  blockConcurrentLogin
+                    ? "bg-rose-50/70 border-rose-200 ring-1 ring-rose-200"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={blockConcurrentLogin}
+                  onChange={(e) => setBlockConcurrentLogin(e.target.checked)}
+                  className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 block flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-rose-600" />
+                    قفل نشست همزمان و تطبیق IP
+                  </span>
+                  <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">
+                    مسدودسازی باز کردن آزمون در چند تب یا ارسال پاسخ همزمان از دو سیستم
                   </span>
                 </div>
               </label>

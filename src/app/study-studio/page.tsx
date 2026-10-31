@@ -22,6 +22,7 @@ import {
   Search,
   Filter,
   Send,
+  Swords,
 } from "lucide-react";
 
 export default function StudyStudioHubPage() {
@@ -80,11 +81,19 @@ export default function StudyStudioHubPage() {
               <button
                 type="button"
                 onClick={() => setIsCreateOpen(true)}
-                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 flex items-center gap-2 border border-amber-300"
+                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 text-white font-black text-xs rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 flex items-center gap-2 border border-indigo-400"
               >
                 <Plus className="w-4 h-4" />
                 تولید بسته جدید با هوش مصنوعی ⚡
               </button>
+
+              <Link
+                href="/student/adaptive"
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-slate-950 font-black text-xs rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 flex items-center gap-2 border border-amber-300"
+              >
+                <Swords className="w-4 h-4 text-slate-950" />
+                موتور یادگیری تطبیقی و Boss Fight ⚔️
+              </Link>
             </div>
           </div>
 
@@ -184,10 +193,19 @@ export default function StudyStudioHubPage() {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 <Link
                   href={`/study-studio/${pack.id}`}
-                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-300" />
-                  ورود به اتاق مطالعه
+                  اتاق مطالعه
+                </Link>
+
+                <Link
+                  href={`/study-studio/${pack.id}/adaptive`}
+                  className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1"
+                  title="ورود به نقشه مراحل تطبیقی و چالش Boss Fight"
+                >
+                  <Swords className="w-3.5 h-3.5 text-amber-600" />
+                  <span>نقشه تطبیقی</span>
                 </Link>
 
                 {(currentUser.role === "TEACHER" || currentUser.role === "PRINCIPAL") && (

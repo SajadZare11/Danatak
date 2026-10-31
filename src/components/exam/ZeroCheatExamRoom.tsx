@@ -27,6 +27,12 @@ import {
   PenTool,
   Check,
   Eye,
+  Camera,
+  Mic,
+  Monitor,
+  Users,
+  Minimize2,
+  Volume2,
 } from "lucide-react";
 import { KaTeXRenderer } from "@/components/common/KaTeXRenderer";
 
@@ -40,6 +46,10 @@ interface AntiCheatSettings {
   shuffleOptions?: boolean;
   isSequential?: boolean;
   negativeMarking?: boolean;
+  enableWebcamProctoring?: boolean;
+  enableAudioMonitoring?: boolean;
+  detectDualScreen?: boolean;
+  blockConcurrentLogin?: boolean;
 }
 
 interface ExamDetail {
@@ -112,9 +122,34 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
         shuffleOptions: false,
         isSequential: exam.isSequential,
         negativeMarking: true,
+        enableWebcamProctoring: exam.enableAntiCheat,
+        enableAudioMonitoring: exam.enableAntiCheat,
+        detectDualScreen: exam.enableAntiCheat,
+        blockConcurrentLogin: true,
       }
     );
   }, [exam]);
+
+  // شناسه یکتای نشست کلاینت جهت جلوگیری از ورود همزمان
+  const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+  const [isSessionBlocked, setIsSessionBlocked] = useState(false);
+  const [sessionBlockReason, setSessionBlockReason] = useState("");
+
+  // پایش مانیتور دوم (Dual-Screen)
+  const [dualScreenDetected, setDualScreenDetected] = useState(false);
+
+  // پایش وب‌کم و هوش مصنوعی چهره
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [faceStatus, setFaceStatus] = useState<"NORMAL" | "LOOKING_AWAY" | "NO_FACE" | "MULTIPLE_FACES">("NORMAL");
+  const [proctoringMinimzed, setProctoringMinimized] = useState(false);
+
+  // پایش صوتی میکروفون
+  const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
+  const [audioLevel, setAudioLevel] = useState(0); // 0 to 100
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // سوالات مرتب شده یا تصادفی بر اساس تنظیم معلم
   const [examQuestions, setExamQuestions] = useState<QuestionItem[]>(initialQuestions);
@@ -193,33 +228,37 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     return () => clearInterval(timer);
   }, [phase]);
 
+  // ثبت یکپارچه تخلف امنیتی و بررسی سقف خطا
+  const recordViolation = (reason: string, isCritical = false) => {
+    const timeStr = new Date().toLocaleTimeString("fa-IR");
+    const log = `${reason} در ساعت ${timeStr}`;
+    setWarningLogs((prev) => [...prev, log]);
+
+    const maxLimit = antiCheat.maxTabSwitches || 3;
+    setTabSwitchCount((prev) => {
+      const newCount = prev + 1;
+      setWarningTitle(isCritical ? "تخلف بحرانی امنیتی!" : "هشدار تخلف ضدتقلب!");
+      setWarningMessage(
+        `${reason} (اخطار ${newCount} از ${maxLimit}). در صورت تکرار، آزمون به صورت خودکار پایان خواهد یافت.`
+      );
+      setShowWarningModal(true);
+
+      if (newCount >= maxLimit || isCritical) {
+        setTimeout(() => {
+          handleSubmitExam(true);
+        }, 1200);
+      }
+      return newCount;
+    });
+  };
+
   // شنود ضدتقلب ۱: خروج از تب و تغییر فوکوس (Tab-Switch & Blur Detection)
   useEffect(() => {
     if (phase !== "active" || !antiCheat.detectTabSwitch) return;
 
-    const maxLimit = antiCheat.maxTabSwitches || 3;
-
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        const timeStr = new Date().toLocaleTimeString("fa-IR");
-        const log = `خروج از صفحه آزمون در ساعت ${timeStr}`;
-        setWarningLogs((prev) => [...prev, log]);
-
-        setTabSwitchCount((prev) => {
-          const newCount = prev + 1;
-          setWarningTitle("هشدار خروج از صفحه آزمون!");
-          setWarningMessage(
-            `خروج شما از صفحه آزمون ثبت شد (اخطار ${newCount} از ${maxLimit}). در صورت تکرار، آزمون به صورت خودکار پایان خواهد یافت.`
-          );
-          setShowWarningModal(true);
-
-          if (newCount >= maxLimit) {
-            setTimeout(() => {
-              handleSubmitExam(true);
-            }, 1200);
-          }
-          return newCount;
-        });
+        recordViolation("خروج از صفحه آزمون / تغییر تب");
       }
     };
 
@@ -227,35 +266,15 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [phase, antiCheat.detectTabSwitch, antiCheat.maxTabSwitches]);
+  }, [phase, antiCheat.detectTabSwitch]);
 
   // شنود ضدتقلب ۲: نظارت بر حالت تمام‌صفحه (Fullscreen Monitoring)
   useEffect(() => {
     if (phase !== "active" || !antiCheat.enableFullscreen) return;
 
-    const maxLimit = antiCheat.maxTabSwitches || 3;
-
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        const timeStr = new Date().toLocaleTimeString("fa-IR");
-        const log = `خروج از حالت تمام‌صفحه در ساعت ${timeStr}`;
-        setWarningLogs((prev) => [...prev, log]);
-
-        setTabSwitchCount((prev) => {
-          const newCount = prev + 1;
-          setWarningTitle("خروج از حالت تمام‌صفحه!");
-          setWarningMessage(
-            `شما از حالت تمام‌صفحه خارج شدید (اخطار ${newCount} از ${maxLimit}). لطفاً فوراً تمام‌صفحه را فعال نگه دارید.`
-          );
-          setShowWarningModal(true);
-
-          if (newCount >= maxLimit) {
-            setTimeout(() => {
-              handleSubmitExam(true);
-            }, 1200);
-          }
-          return newCount;
-        });
+        recordViolation("خروج از حالت تمام‌صفحه");
       }
     };
 
@@ -263,7 +282,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, [phase, antiCheat.enableFullscreen, antiCheat.maxTabSwitches]);
+  }, [phase, antiCheat.enableFullscreen]);
 
   // شنود ضدتقلب ۳: مسدودسازی کپی، پیست و کلیدهای میانبر (Copy/Paste & Keydown Blocking)
   useEffect(() => {
@@ -273,6 +292,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
       // غیرفعال کردن کلیدهای ترکیبی بازرسی، کپی و اسکرین‌شات
       if (
         (e.ctrlKey && (e.key === "c" || e.key === "v" || e.key === "u" || e.key === "a" || e.key === "p")) ||
+        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) ||
         e.key === "F12" ||
         e.key === "PrintScreen"
       ) {
@@ -296,6 +316,334 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     };
   }, [phase, antiCheat.disableCopyPaste]);
 
+  // شنود ضدتقلب ۴: تشخیص مانیتور دوم و نمایشگر جانبی (Dual-Screen Detection)
+  useEffect(() => {
+    if (!antiCheat.detectDualScreen) return;
+
+    const checkDualScreen = () => {
+      const isExt = (window.screen as any)?.isExtended === true;
+      const isWide = window.screen.availWidth > window.screen.width * 1.25;
+      const detected = Boolean(isExt || isWide);
+      setDualScreenDetected(detected);
+
+      if (phase === "active" && detected) {
+        recordViolation("اتصال نمایشگر دوم (Dual-Screen / Extended Display)");
+      }
+    };
+
+    checkDualScreen();
+    const interval = setInterval(checkDualScreen, 4000);
+    (window.screen as any)?.addEventListener?.("change", checkDualScreen);
+
+    return () => {
+      clearInterval(interval);
+      (window.screen as any)?.removeEventListener?.("change", checkDualScreen);
+    };
+  }, [phase, antiCheat.detectDualScreen]);
+
+  // شنود ضدتقلب ۵: تطبیق IP و جلوگیری از نشست‌های چندگانه (Concurrent Login Block)
+  useEffect(() => {
+    if (phase !== "active" || !antiCheat.blockConcurrentLogin) return;
+
+    // ۱. ثبت شروع نشست در سرور
+    const startSession = async () => {
+      try {
+        const res = await fetch(`/api/exams/${exam.id}/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "start",
+            studentId,
+            sessionId,
+          }),
+        });
+        const data = await res.json();
+        if (data.blocked) {
+          setIsSessionBlocked(true);
+          setSessionBlockReason(data.reason || "نشست همزمان فعال دیگری شناسایی شد.");
+          recordViolation("تشخیص نشست همزمان از سیستم دیگر", true);
+        }
+      } catch (err) {
+        console.error("Session start error:", err);
+      }
+    };
+
+    startSession();
+
+    // ۲. پالس تپش قلب دوره‌ای هر ۸ ثانیه
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/exams/${exam.id}/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "heartbeat",
+            studentId,
+            sessionId,
+          }),
+        });
+        const data = await res.json();
+        if (data.blocked) {
+          setIsSessionBlocked(true);
+          setSessionBlockReason(data.reason || "نشست متوقف شد.");
+          recordViolation("قطع نشست به دلیل ورود از سیستم دیگر", true);
+        } else if (data.ipWarning) {
+          recordViolation(data.ipWarning);
+        }
+      } catch (err) {
+        console.error("Heartbeat error:", err);
+      }
+    }, 8000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      fetch(`/api/exams/${exam.id}/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "end",
+          studentId,
+          sessionId,
+        }),
+      }).catch(() => {});
+    };
+  }, [phase, antiCheat.blockConcurrentLogin, exam.id, studentId, sessionId]);
+
+  // شنود ضدتقلب ۶: پایش وب‌کم با هوش مصنوعی و پایش صوتی میکروفون (AI Face, Gaze & Audio)
+  useEffect(() => {
+    if (phase !== "active" || (!antiCheat.enableWebcamProctoring && !antiCheat.enableAudioMonitoring)) {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
+    let animationFrameId: number;
+    let audioInterval: NodeJS.Timeout;
+
+    const initMedia = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: antiCheat.enableWebcamProctoring ? { width: { ideal: 320 }, height: { ideal: 240 } } : false,
+          audio: antiCheat.enableAudioMonitoring ? true : false,
+        });
+
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        mediaStreamRef.current = stream;
+
+        // اتصال ویدیو
+        if (antiCheat.enableWebcamProctoring && videoRef.current && stream.getVideoTracks().length > 0) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+          setHasCameraPermission(true);
+        }
+
+        // راه‌اندازی Web Audio API
+        if (antiCheat.enableAudioMonitoring && stream.getAudioTracks().length > 0) {
+          try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            const audioCtx = new AudioCtx();
+            audioContextRef.current = audioCtx;
+            const source = audioCtx.createMediaStreamSource(stream);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            setHasMicPermission(true);
+
+            let highNoiseTicks = 0;
+            audioInterval = setInterval(() => {
+              if (!isMounted) return;
+              analyser.getByteFrequencyData(dataArray);
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+              }
+              const avg = sum / dataArray.length;
+              const level = Math.min(100, Math.round((avg / 128) * 100));
+              setAudioLevel(level);
+
+              // اگر صدا برای بیش از ۱.۵ ثانیه بالای ۴۵ درصد بماند
+              if (level > 45) {
+                highNoiseTicks++;
+                if (highNoiseTicks >= 3) {
+                  highNoiseTicks = 0;
+                  recordViolation(`ثبت مکالمه یا نویز صوتی نامتعارف در محیط آزمون (سطح صدا: ${level}٪)`);
+                }
+              } else {
+                highNoiseTicks = Math.max(0, highNoiseTicks - 1);
+              }
+            }, 500);
+          } catch (e) {
+            console.warn("Audio Context init error:", e);
+          }
+        }
+      } catch (err) {
+        console.warn("Camera/Mic access denied or unavailable:", err);
+        if (isMounted) {
+          setHasCameraPermission(false);
+          setHasMicPermission(false);
+        }
+      }
+    };
+
+    initMedia();
+
+    // حلقه پردازش هوش مصنوعی وب‌کم
+    let noFaceTicks = 0;
+    let gazeShiftTicks = 0;
+    let multiFaceTicks = 0;
+    let detector: any = null;
+
+    if (typeof window !== "undefined" && (window as any).FaceDetector) {
+      try {
+        detector = new (window as any).FaceDetector({ maxDetectedFaces: 5, fastMode: true });
+      } catch {}
+    }
+
+    const processVideoFrame = async () => {
+      if (!isMounted) return;
+
+      if (antiCheat.enableWebcamProctoring && videoRef.current && videoRef.current.readyState >= 2) {
+        const video = videoRef.current;
+        const width = video.videoWidth || 320;
+        let detectedFacesCount = 1;
+        let isGazeDeviated = false;
+
+        if (detector) {
+          try {
+            const faces = await detector.detect(video);
+            detectedFacesCount = faces.length;
+            if (faces.length === 1) {
+              const box = faces[0].boundingBox;
+              const centerX = box.x + box.width / 2;
+              const relativeX = centerX / width;
+              if (relativeX < 0.22 || relativeX > 0.78) {
+                isGazeDeviated = true;
+              }
+            }
+          } catch {}
+        } else {
+          // فال‌بک پردازش رنگ پوست و خوشه‌بندی روی Canvas
+          if (!canvasRef.current) {
+            canvasRef.current = document.createElement("canvas");
+          }
+          const canvas = canvasRef.current;
+          canvas.width = 80;
+          canvas.height = 60;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, 80, 60);
+            const imgData = ctx.getImageData(0, 0, 80, 60);
+            const data = imgData.data;
+
+            let skinPixelCount = 0;
+            let sumX = 0;
+            let leftHalfSkin = 0;
+            let rightHalfSkin = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
+              const pixelIdx = i / 4;
+              const px = pixelIdx % 80;
+
+              const isSkin =
+                r > 95 &&
+                g > 40 &&
+                b > 20 &&
+                r - g > 15 &&
+                r > b &&
+                Math.max(r, g, b) - Math.min(r, g, b) > 15;
+
+              if (isSkin) {
+                skinPixelCount++;
+                sumX += px;
+                if (px < 35) leftHalfSkin++;
+                if (px > 45) rightHalfSkin++;
+              }
+            }
+
+            if (skinPixelCount < 90) {
+              detectedFacesCount = 0;
+            } else if (leftHalfSkin > 280 && rightHalfSkin > 280 && Math.abs(leftHalfSkin - rightHalfSkin) < 90) {
+              detectedFacesCount = 2;
+            } else {
+              detectedFacesCount = 1;
+              const centroidX = sumX / skinPixelCount;
+              if (centroidX < 20 || centroidX > 60) {
+                isGazeDeviated = true;
+              }
+            }
+          }
+        }
+
+        if (detectedFacesCount === 0) {
+          setFaceStatus("NO_FACE");
+          noFaceTicks++;
+          gazeShiftTicks = 0;
+          multiFaceTicks = 0;
+          if (noFaceTicks >= 3) {
+            noFaceTicks = 0;
+            recordViolation("عدم حضور چهره مقابل دوربین وب‌کم (خروج از کادر)");
+          }
+        } else if (detectedFacesCount > 1) {
+          setFaceStatus("MULTIPLE_FACES");
+          multiFaceTicks++;
+          noFaceTicks = 0;
+          gazeShiftTicks = 0;
+          if (multiFaceTicks >= 2) {
+            multiFaceTicks = 0;
+            recordViolation("تشخیص حضور فرد دوم یا بیش از یک نفر در کادر دوربین");
+          }
+        } else if (isGazeDeviated) {
+          setFaceStatus("LOOKING_AWAY");
+          gazeShiftTicks++;
+          noFaceTicks = 0;
+          multiFaceTicks = 0;
+          if (gazeShiftTicks >= 3) {
+            gazeShiftTicks = 0;
+            recordViolation("انحراف ممتد زاویه نگاه از صفحه آزمون / چرخش سر به اطراف");
+          }
+        } else {
+          setFaceStatus("NORMAL");
+          noFaceTicks = Math.max(0, noFaceTicks - 1);
+          gazeShiftTicks = Math.max(0, gazeShiftTicks - 1);
+          multiFaceTicks = Math.max(0, multiFaceTicks - 1);
+        }
+      }
+
+      setTimeout(() => {
+        if (isMounted) {
+          animationFrameId = requestAnimationFrame(processVideoFrame);
+        }
+      }, 1000);
+    };
+
+    animationFrameId = requestAnimationFrame(processVideoFrame);
+
+    return () => {
+      isMounted = false;
+      cancelAnimationFrame(animationFrameId);
+      if (audioInterval) clearInterval(audioInterval);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, [phase, antiCheat.enableWebcamProctoring, antiCheat.enableAudioMonitoring]);
+
   // شروع آزمون و ورود به حالت تمام‌صفحه
   const handleStartExam = () => {
     if (antiCheat.enableFullscreen && document.documentElement.requestFullscreen) {
@@ -309,6 +657,15 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
+    // توقف استریم وب‌کم و میکروفون
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+    }
+
     try {
       const res = await fetch(`/api/exams/${exam.id}/submit`, {
         method: "POST",
@@ -318,6 +675,7 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           answers,
           tabSwitchCount,
           warningLogs,
+          sessionId,
         }),
       });
 
@@ -413,6 +771,17 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           </p>
         </div>
 
+        {/* اخطار مانیتور دوم در لابی */}
+        {antiCheat.detectDualScreen && dualScreenDetected && (
+          <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-start gap-3 text-xs text-rose-900 animate-pulse">
+            <Monitor className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-black block mb-0.5">اتصال مانیتور دوم (Dual-Screen) شناسایی شد:</span>
+              جهت رعایت پروتکل‌های آزمون امن، لطفاً اتصال نمایشگر دوم یا کابل HDMI را قطع نمایید تا مجوز ورود به اتاق آزمون صادر شود.
+            </div>
+          </div>
+        )}
+
         {/* جعبه ترکیب سوالات */}
         <div className="bg-indigo-50/60 rounded-2xl p-4 border border-indigo-100 flex flex-wrap items-center justify-around gap-3 text-xs">
           <div className="text-center">
@@ -481,6 +850,26 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
                 <span className="font-bold text-indigo-700">واترمارک شناور:</span> کدملی و مشخصات هویتی شما به صورت نیمه‌شفاف در زمینه نمایش داده خواهد شد.
               </li>
             )}
+            {antiCheat.enableWebcamProctoring && (
+              <li>
+                <span className="font-bold text-rose-700">پایش هوشمند وب‌کم:</span> وضعیت چهره، انحراف زاویه نگاه، چرخش سر و عدم حضور افراد غیرمجاز توسط پردازش تصویر هوش مصنوعی ارزیابی می‌شود.
+              </li>
+            )}
+            {antiCheat.enableAudioMonitoring && (
+              <li>
+                <span className="font-bold text-rose-700">پایش صوتی محیط:</span> حجم صدای محیط توسط میکروفون بررسی شده و صحبت یا همیاری کلامی اخطار ثبت می‌کند.
+              </li>
+            )}
+            {antiCheat.detectDualScreen && (
+              <li>
+                <span className="font-bold text-indigo-700">پایش مانیتور دوم:</span> اتصال هرگونه نمایشگر اکستندد یا کابل HDMI جانبی غیرمجاز و ممنوع است.
+              </li>
+            )}
+            {antiCheat.blockConcurrentLogin && (
+              <li>
+                <span className="font-bold text-slate-900">قفل نشست همزمان:</span> باز کردن آزمون در چند تب یا ارسال پاسخ همزمان از سیستم دیگر مسدود است.
+              </li>
+            )}
             {antiCheat.isSequential && (
               <li>
                 <span className="font-bold text-amber-700">ناوبری ترتیبی:</span> پس از پاسخ و رفتن به سوال بعدی، امکان بازگشت به سوالات قبل وجود نخواهد داشت.
@@ -506,11 +895,18 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
 
           <button
             type="button"
+            disabled={antiCheat.detectDualScreen && dualScreenDetected}
             onClick={handleStartExam}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-600/25 transition transform hover:-translate-y-0.5"
+            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-2xl text-xs font-black shadow-lg transition transform ${
+              antiCheat.detectDualScreen && dualScreenDetected
+                ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white shadow-rose-600/25 hover:-translate-y-0.5"
+            }`}
           >
             <Maximize2 className="w-4 h-4" />
-            ورود به اتاق آزمون 🔒
+            {antiCheat.detectDualScreen && dualScreenDetected
+              ? "ورود غیرمجاز (مانیتور دوم را قطع کنید)"
+              : "ورود به اتاق آزمون 🔒"}
           </button>
         </div>
       </div>
@@ -739,6 +1135,31 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
               {studentName} • {studentNationalId} • {schoolName}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* مودال خطای قفل نشست همزمان */}
+      {isSessionBlocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full border-2 border-rose-600 shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-3xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Users className="w-8 h-8 stroke-[2.5]" />
+            </div>
+            <h3 className="text-base font-black text-slate-900">قفل نشست همزمان (Concurrent Login)</h3>
+            <p className="text-xs text-rose-700 font-bold leading-relaxed">{sessionBlockReason}</p>
+            <p className="text-[11px] text-slate-500">
+              این آزمون به دلیل ثبت ورود همزمان از دستگاه، مرورگر یا تب دیگری مسدود شد.
+            </p>
+            {onExit && (
+              <button
+                type="button"
+                onClick={onExit}
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition"
+              >
+                خروج از آزمون
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1028,6 +1449,135 @@ export const ZeroCheatExamRoom: React.FC<ZeroCheatExamRoomProps> = ({
           <div className="text-center py-12">سوالی یافت نشد.</div>
         )}
       </main>
+
+      {/* ===================================================================== */}
+      {/* ویجت نظارت و پایش پیشرفته هوش مصنوعی (AI & Media Proctoring HUD) */}
+      {/* ===================================================================== */}
+      {(antiCheat.enableWebcamProctoring || antiCheat.enableAudioMonitoring) && (
+        <aside
+          aria-label="پایش زنده وب‌کم و میکروفون"
+          className={`fixed bottom-20 left-4 z-40 transition-all duration-300 rounded-2xl bg-slate-900/95 text-white shadow-2xl backdrop-blur-md border ${
+            faceStatus === "NORMAL"
+              ? "border-emerald-500/50 shadow-emerald-950/20"
+              : faceStatus === "LOOKING_AWAY"
+              ? "border-amber-500/70 shadow-amber-950/30"
+              : "border-rose-500 shadow-rose-950/40 animate-pulse"
+          }`}
+        >
+          {proctoringMinimzed ? (
+            <div className="flex items-center gap-2 p-2 px-3">
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  faceStatus === "NORMAL"
+                    ? "bg-emerald-400"
+                    : faceStatus === "LOOKING_AWAY"
+                    ? "bg-amber-400"
+                    : "bg-rose-500"
+                }`}
+              />
+              <span className="text-[11px] font-bold">پایش هوشمند</span>
+              <button
+                type="button"
+                onClick={() => setProctoringMinimized(false)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+                title="بزرگ‌نمایی"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 w-56 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-black border-b border-slate-800 pb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`w-2 h-2 rounded-full animate-ping ${
+                      faceStatus === "NORMAL"
+                        ? "bg-emerald-400"
+                        : faceStatus === "LOOKING_AWAY"
+                        ? "bg-amber-400"
+                        : "bg-rose-500"
+                    }`}
+                  />
+                  <span>پایش زنده هوش مصنوعی</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProctoringMinimized(true)}
+                  className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition"
+                  title="کوچک‌نمایی"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* کادر ویدیو وب‌کم */}
+              {antiCheat.enableWebcamProctoring && (
+                <div className="relative rounded-xl overflow-hidden bg-black aspect-video border border-slate-800">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover -scale-x-100"
+                  />
+                  {/* برچسب وضعیت چهره بر روی تصویر */}
+                  <div className="absolute bottom-1 right-1 left-1">
+                    <span
+                      className={`block text-[9px] font-bold px-2 py-0.5 rounded-md text-center backdrop-blur-md ${
+                        faceStatus === "NORMAL"
+                          ? "bg-emerald-600/80 text-white"
+                          : faceStatus === "LOOKING_AWAY"
+                          ? "bg-amber-600/90 text-white"
+                          : "bg-rose-600/90 text-white"
+                      }`}
+                    >
+                      {faceStatus === "NORMAL" && "✓ چهره در کادر (امن)"}
+                      {faceStatus === "LOOKING_AWAY" && "⚠ انحراف زاویه نگاه"}
+                      {faceStatus === "NO_FACE" && "✕ عدم حضور چهره"}
+                      {faceStatus === "MULTIPLE_FACES" && "⛔ تشخیص فرد دوم"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* سنجش صدای محیط و میکروفون */}
+              {antiCheat.enableAudioMonitoring && (
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300">
+                    <span className="flex items-center gap-1">
+                      <Mic className="w-3 h-3 text-indigo-400" />
+                      صدای محیط:
+                    </span>
+                    <span
+                      className={`font-mono font-bold ${
+                        audioLevel > 45 ? "text-rose-400 font-black" : "text-emerald-400"
+                      }`}
+                    >
+                      {audioLevel}٪
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        audioLevel > 45 ? "bg-rose-500" : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${audioLevel}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* نشانگر قفل نشست همزمان */}
+              {antiCheat.blockConcurrentLogin && (
+                <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-800/80">
+                  <span>نشست ایمن:</span>
+                  <span className="text-emerald-400 font-mono">تک‌کاربره فعال</span>
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
+      )}
 
       {/* نوار ناوبری پایینی بین سوالات */}
       <footer className="sticky bottom-0 z-30 bg-white border-t border-slate-200 px-4 md:px-8 py-3.5 flex items-center justify-between">
