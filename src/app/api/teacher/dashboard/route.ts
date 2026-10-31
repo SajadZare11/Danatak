@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const requestedClassroomId = searchParams.get("classroomId");
+
     // یافتن دبیر پیش‌فرض نمونه (استاد محمدی)
     const teacherUser = await prisma.user.findFirst({
       where: { role: "TEACHER" },
@@ -41,7 +44,10 @@ export async function GET() {
       return NextResponse.json({ error: "معلم یافت نشد" }, { status: 404 });
     }
 
-    const classroom = teacherUser.teacherProfile.classrooms[0];
+    const classrooms = teacherUser.teacherProfile.classrooms || [];
+    const classroom = requestedClassroomId
+      ? classrooms.find((c) => c.id === requestedClassroomId) || classrooms[0]
+      : classrooms[0];
 
     // واکشی تمام کتاب‌های درسی برای فرم سازنده تکلیف و فیلترها
     const allTextbooks = await prisma.textbook.findMany({
@@ -69,6 +75,16 @@ export async function GET() {
       },
     });
 
+    // واکشی تمام دانش‌آموزان ثبت‌شده در سامانه جهت انتخاب سریع در افزودن کلاس
+    const allStudents = await prisma.studentProfile.findMany({
+      include: {
+        user: true,
+      },
+      orderBy: {
+        user: { fullName: "asc" },
+      },
+    });
+
     return NextResponse.json({
       teacher: {
         id: teacherUser.id,
@@ -76,12 +92,21 @@ export async function GET() {
         specialty: teacherUser.teacherProfile.specialty,
         schoolName: teacherUser.teacherProfile.schoolName,
       },
+      classrooms: classrooms.map((c) => ({
+        id: c.id,
+        name: c.name,
+        gradeLevel: c.gradeLevel,
+        major: c.major,
+        subjects: c.subjects || "تدریس حسابان ۲ و ریاضی ۳",
+        studentCount: c.enrollments?.length || 0,
+      })),
       classroom: classroom
         ? {
             id: classroom.id,
             name: classroom.name,
             gradeLevel: classroom.gradeLevel,
             major: classroom.major,
+            subjects: classroom.subjects || "تدریس حسابان ۲ و ریاضی ۳",
             students: classroom.enrollments.map((e) => {
               const sp = e.student;
               const u = sp.user;
@@ -121,6 +146,15 @@ export async function GET() {
             }),
           }
         : null,
+      availableStudents: allStudents.map((s) => ({
+        id: s.id,
+        userId: s.user.id,
+        fullName: s.user.fullName,
+        nationalId: s.user.nationalId,
+        phoneNumber: s.user.phoneNumber,
+        gradeLevel: s.gradeLevel,
+        major: s.major,
+      })),
       textbookTopics: grade12Textbook?.topics || [],
       allTextbooks: allTextbooks.map((tb) => ({
         id: tb.id,

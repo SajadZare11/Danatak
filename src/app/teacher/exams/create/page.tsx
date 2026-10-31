@@ -38,7 +38,6 @@ import {
   Users,
 } from "lucide-react";
 import { KaTeXRenderer } from "@/components/common/KaTeXRenderer";
-import { RoleSwitcherBar } from "@/components/common/RoleSwitcherBar";
 
 interface QuestionDraft {
   id: string;
@@ -550,11 +549,8 @@ export default function DedicatedExamBuilderPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 pb-20">
-      {/* نوار جابجایی نقش */}
-      <RoleSwitcherBar />
-
       {/* سربرگ اختصاصی استودیو */}
-      <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-30">
+      <header className="bg-slate-900 text-white shadow-lg sticky top-14 z-30">
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-rose-600 flex items-center justify-center text-white shadow-md">

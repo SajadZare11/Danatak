@@ -18,6 +18,7 @@ interface ClassroomRosterTabProps {
   classroomName: string;
   gradeLevel: number;
   major: string;
+  subjects?: string;
   students: StudentData[];
   onSelectStudent: (student: StudentData) => void;
   onOpenBulkModal: () => void;
@@ -27,6 +28,7 @@ export const ClassroomRosterTab: React.FC<ClassroomRosterTabProps> = ({
   classroomName,
   gradeLevel,
   major,
+  subjects,
   students,
   onSelectStudent,
   onOpenBulkModal,
@@ -62,7 +64,7 @@ export const ClassroomRosterTab: React.FC<ClassroomRosterTabProps> = ({
             <div>
               <h2 className="text-lg font-extrabold text-slate-900">{classroomName}</h2>
               <p className="text-xs text-slate-500">
-                پایه {gradeLevel} • رشته {major} • تدریس حسابان ۲ و ریاضی ۳
+                پایه {gradeLevel} • رشته {major} • {subjects || "تدریس حسابان ۲ و ریاضی ۳"}
               </p>
             </div>
           </div>

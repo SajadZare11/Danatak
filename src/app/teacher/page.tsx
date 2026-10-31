@@ -19,6 +19,7 @@ import { CreateLiveSessionModal } from "@/components/live/CreateLiveSessionModal
 import { LiveClassAlertBanner } from "@/components/live/LiveClassAlertBanner";
 import { CollapsibleDashboardCard } from "@/components/common/CollapsibleDashboardCard";
 import { TeacherGradebookModal } from "@/components/teacher/TeacherGradebookModal";
+import { CreateClassroomModal } from "@/components/teacher/CreateClassroomModal";
 import {
   Users,
   AlertTriangle,
@@ -39,19 +40,38 @@ import {
   ClipboardList,
   Clock,
   PenTool,
+  Trash2,
 } from "lucide-react";
 
 export default function TeacherPage() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<{
     teacher: { id: string; fullName: string; specialty: string; schoolName: string };
+    classrooms?: Array<{
+      id: string;
+      name: string;
+      gradeLevel: number;
+      major: string;
+      subjects?: string;
+      studentCount: number;
+    }>;
     classroom: {
       id: string;
       name: string;
       gradeLevel: number;
       major: string;
+      subjects?: string;
       students: StudentData[];
     } | null;
+    availableStudents?: Array<{
+      id: string;
+      userId?: string;
+      fullName: string;
+      nationalId: string;
+      phoneNumber?: string | null;
+      gradeLevel?: number;
+      major?: string;
+    }>;
     textbookTopics: Array<{
       id: string;
       title: string;
@@ -125,6 +145,10 @@ export default function TeacherPage() {
   const [isGradebookOpen, setIsGradebookOpen] = useState(false);
   const [gradebookDefaultTab, setGradebookDefaultTab] = useState<"entry" | "records">("records");
 
+  // وضعیت مودال افزودن کلاس جدید
+  const [isCreateClassModalOpen, setIsCreateClassModalOpen] = useState(false);
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>("");
+
   // پیام اعلان موفقیت (Toast)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -133,11 +157,18 @@ export default function TeacherPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (targetClassroomId?: string) => {
     try {
-      const res = await fetch("/api/teacher/dashboard");
+      const activeId = targetClassroomId || selectedClassroomId;
+      const url = activeId
+        ? `/api/teacher/dashboard?classroomId=${activeId}`
+        : "/api/teacher/dashboard";
+      const res = await fetch(url);
       const data = await res.json();
       setDashboardData(data);
+      if (data.classroom) {
+        setSelectedClassroomId(data.classroom.id);
+      }
       setLoading(false);
     } catch (err) {
       console.error("Failed to load dashboard data:", err);
@@ -148,6 +179,35 @@ export default function TeacherPage() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // جابجایی کلاس فعال
+  const handleClassroomChange = async (classroomId: string) => {
+    setSelectedClassroomId(classroomId);
+    await fetchDashboardData(classroomId);
+  };
+
+  // حذف کلاس
+  const handleDeleteClassroom = async (classroomId: string, classroomName: string) => {
+    if (!confirm(`آیا از حذف کلاس «${classroomName}» اطمینان دارید؟`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/teacher/classrooms?classroomId=${classroomId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || "کلاس با موفقیت حذف شد.");
+        setSelectedClassroomId("");
+        await fetchDashboardData();
+      } else {
+        alert(data.error || "خطا در حذف کلاس");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("خطا در ارتباط با سرور");
+    }
+  };
 
   // ذخیره درصد یادگیری تکی
   const handleSaveMastery = async (studentProfileId: string, topicId: string, percentage: number) => {
@@ -321,6 +381,63 @@ export default function TeacherPage() {
           onToggle={() => toggleCard("roster")}
         >
           <div className="space-y-4">
+            {/* نوار انتخاب کلاس‌های دبیر و دکمه افزودن کلاس جدید */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-indigo-600/80 rounded-xl text-white">
+                    <Layers className="w-4 h-4" />
+                  </span>
+                  <span className="text-xs font-bold text-slate-300">کلاس فعال:</span>
+                </div>
+
+                {/* سلکتور انتخاب کلاس */}
+                <div className="relative">
+                  <select
+                    value={classroom?.id || selectedClassroomId}
+                    onChange={(e) => handleClassroomChange(e.target.value)}
+                    className="bg-slate-800/90 text-white text-xs font-bold px-3 py-2 pr-4 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
+                  >
+                    {dashboardData?.classrooms?.map((c) => (
+                      <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                        {c.name} (پایه {c.gradeLevel} • {c.studentCount} دانش‌آموز)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {classroom && (
+                  <span className="text-[11px] bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2.5 py-1 rounded-lg font-medium hidden lg:inline-block">
+                    {classroom.major} • {classroom.subjects || "تدریس حسابان و ریاضی"}
+                  </span>
+                )}
+              </div>
+
+              {/* دکمه‌های اقدام کلاس: افزودن کلاس جدید و حذف */}
+              <div className="flex items-center gap-2 self-end md:self-auto">
+                {dashboardData?.classrooms && dashboardData.classrooms.length > 1 && classroom && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteClassroom(classroom.id, classroom.name)}
+                    title="حذف این کلاس"
+                    className="p-2 text-rose-400 hover:text-white hover:bg-rose-600/80 rounded-xl transition border border-rose-500/30 text-xs flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">حذف کلاس</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsCreateClassModalOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition border border-indigo-400/40"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>افزودن کلاس جدید</span>
+                </button>
+              </div>
+            </div>
+
             {/* نوار اقدامات سریع کلاسی */}
             <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
               {/* تب‌های فرعی */}
@@ -411,6 +528,7 @@ export default function TeacherPage() {
                 classroomName={classroom.name}
                 gradeLevel={classroom.gradeLevel}
                 major={classroom.major}
+                subjects={classroom.subjects}
                 students={students}
                 onSelectStudent={(st) => {
                   setSelectedStudent(st);
@@ -794,6 +912,21 @@ export default function TeacherPage() {
         onClose={() => setIsGradebookOpen(false)}
         initialClassroomId={classroom?.id}
         defaultTab={gradebookDefaultTab}
+      />
+
+      {/* مودال ساخت و افزودن کلاس جدید */}
+      <CreateClassroomModal
+        isOpen={isCreateClassModalOpen}
+        onClose={() => setIsCreateClassModalOpen(false)}
+        onSuccess={(newId, msg) => {
+          showToast(msg);
+          setSelectedClassroomId(newId);
+          fetchDashboardData(newId);
+          setOpenCards((prev) => ({ ...prev, roster: true }));
+        }}
+        availableStudents={dashboardData?.availableStudents || []}
+        allTextbooks={dashboardData?.allTextbooks || []}
+        teacherSchoolName={dashboardData?.teacher.schoolName}
       />
     </div>
   );

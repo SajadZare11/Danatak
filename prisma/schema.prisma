@@ -109,6 +109,7 @@ model Classroom {
   name        String             // مثلاً: کلاس دوازدهم ریاضی الف
   gradeLevel  Int                // ۱۲
   major       String             // ریاضی
+  subjects    String?            // عناوین دروس تدریسی، مثلاً: حسابان ۲ و ریاضی ۳
   schoolId    String?
   school      School?            @relation(fields: [schoolId], references: [id])
   teacherId   String?
